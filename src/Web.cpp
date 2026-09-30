@@ -2,7 +2,7 @@
 #include <WebServer.h>
 #include <LittleFS.h>
 #include <Update.h>
-#include <esp_task_wdt.h>
+//#include <esp_task_wdt.h>
 #include "mbedtls/md.h"
 #include "ConfigSettings.h"
 #include "ConfigFile.h"
@@ -281,7 +281,7 @@ void Web::handleStreamFile(WebServer &server, const char *filename, const char *
   webServer.sendCORSHeaders(server);
 
   if(server.method() == HTTP_OPTIONS) { server.send(200, "OK"); return; }
-  esp_task_wdt_reset();
+  //esp_task_wdt_reset();
   // Load the index html page from the data directory.
   // --- LE MOUCHARD DE MÉMOIRE ---
   WiFiClient clientDetect = server.client();
@@ -309,7 +309,7 @@ void Web::handleStreamFile(WebServer &server, const char *filename, const char *
   
   file.close();
  
-  esp_task_wdt_reset();
+  //esp_task_wdt_reset();
 }
 void Web::handleController(WebServer &server) {
   webServer.sendCORSHeaders(server);
@@ -1239,7 +1239,7 @@ void Web::begin() {
       rebootDelay.rebootTime = millis() + 1000;
     }
     }, []() {
-      esp_task_wdt_reset();
+      //esp_task_wdt_reset();
       HTTPUpload& upload = server.upload();
       if (upload.status == UPLOAD_FILE_START) {
         webServer.uploadSuccess = false;
@@ -2166,7 +2166,7 @@ void Web::begin() {
           Update.printError(Serial);
         }
       }
-      esp_task_wdt_reset();
+      //esp_task_wdt_reset();
     });
   server.on("/updateShadeConfig", HTTP_POST, []() {
     if(git.lockFS) {
@@ -2244,17 +2244,17 @@ void Web::begin() {
           Update.printError(Serial);
         }
       }
-      esp_task_wdt_reset();
+      //esp_task_wdt_reset();
     });
   server.on("/scanaps", []() {
     webServer.sendCORSHeaders(server);
-    esp_task_wdt_reset();
+    //esp_task_wdt_reset();
     
     if(server.method() == HTTP_OPTIONS) { server.send(200, "OK"); return; }
-    esp_task_wdt_delete(NULL);
+    //esp_task_wdt_delete(NULL);
     if(net.softAPOpened) WiFi.disconnect(false);
     int n = WiFi.scanNetworks(false, true);
-    esp_task_wdt_add(NULL);
+    //esp_task_wdt_add(NULL);
     
     Serial.print("Scanned ");
     Serial.print(n);

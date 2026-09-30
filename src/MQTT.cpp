@@ -1,7 +1,7 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
-#include <esp_task_wdt.h>
+//#include <esp_task_wdt.h>
 #include "ConfigSettings.h"
 #include "MQTT.h"
 #include "Somfy.h"
@@ -32,16 +32,16 @@ void MQTTClass::reset() { this->disconnect(); this->lastConnect = 0; this->conne
 
 bool MQTTClass::loop() {
   if(settings.MQTT.enabled && !rebootDelay.reboot && !this->suspended && !mqttClient.connected()) {
-    esp_task_wdt_reset();
+    //esp_task_wdt_reset();
     if(net.connected()) this->connect();
   }
-  esp_task_wdt_reset();
+  //esp_task_wdt_reset();
   if(settings.MQTT.enabled) mqttClient.loop();
   return true;
 }
 
 void MQTTClass::receive(const char *topic, byte* payload, uint32_t length) {
-  esp_task_wdt_reset();
+  //esp_task_wdt_reset();
 
   uint16_t len = strlen(topic);
   uint16_t ndx = len - 1;
@@ -106,11 +106,11 @@ void MQTTClass::receive(const char *topic, byte* payload, uint32_t length) {
       else if(strcmp(command, "windy") == 0) group->sendSensorCommand(val, -1, group->repeats);
     }
   }
-  esp_task_wdt_reset();
+  //esp_task_wdt_reset();
 }
 
 bool MQTTClass::connect() {
-  esp_task_wdt_reset();
+  //esp_task_wdt_reset();
   if(mqttClient.connected()) return true;
   if(!settings.MQTT.enabled || this->suspended || (this->lastConnect + 10000 > millis())) return false;
 
@@ -173,7 +173,7 @@ bool MQTTClass::disconnect() {
 
 bool MQTTClass::subscribe(const char *topic) {
   if(!mqttClient.connected()) return false;
-  esp_task_wdt_reset();
+  //esp_task_wdt_reset();
   return mqttClient.subscribe(makeTopic(topic));
 }
 
@@ -184,13 +184,13 @@ bool MQTTClass::unsubscribe(const char *topic) {
 
 bool MQTTClass::publish(const char *topic, const char *payload, bool retain) {
   if(!mqttClient.connected()) return false;
-  esp_task_wdt_reset();
+  //esp_task_wdt_reset();
   return mqttClient.publish(makeTopic(topic), payload, retain);
 }
 
 bool MQTTClass::unpublish(const char *topic) {
   if(!mqttClient.connected()) return false;
-  esp_task_wdt_reset();
+  //esp_task_wdt_reset();
   return mqttClient.publish(makeTopic(topic), (const uint8_t *)"", 0, true);
 }
 
@@ -202,7 +202,7 @@ bool MQTTClass::publish(const char *topic, bool val, bool retain) { return this-
 
 bool MQTTClass::publishBuffer(const char *topic, uint8_t *data, uint16_t len, bool retain, bool absolute) {
   if(!mqttClient.connected()) return false;
-  esp_task_wdt_reset();
+  //esp_task_wdt_reset();
   mqttClient.beginPublish(absolute ? topic : makeTopic(topic), len, retain);
   mqttClient.write(data, len);
   return mqttClient.endPublish();
@@ -218,7 +218,7 @@ bool MQTTClass::publishDisco(const char *topic, JsonObject &obj, bool retain) {
 
 bool MQTTClass::unpublishDisco(const char *topic) {
   if(!mqttClient.connected()) return false;
-  esp_task_wdt_reset();
+  //esp_task_wdt_reset();
   bool ok = mqttClient.publish(topic, (const uint8_t *)"", 0, true);
   if(settings.MQTT.rootTopic[0] != '\0')
     mqttClient.publish(makeTopic(topic), (const uint8_t *)"", 0, true);

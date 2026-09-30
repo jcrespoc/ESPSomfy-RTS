@@ -2,7 +2,7 @@
 #include <ELECHOUSE_CC1101_SRC_DRV.h>
 #include <SPI.h>
 #include <WebServer.h>
-#include <esp_task_wdt.h>
+//#include <esp_task_wdt.h>
 #include "Utils.h"
 #include "ConfigSettings.h"
 #include "Somfy.h"
@@ -621,7 +621,7 @@ bool SomfyShadeController::begin() {
 }
 void SomfyShadeController::commit() {
   if(git.lockFS) return;
-  esp_task_wdt_reset(); // Make sure we don't reset inadvertently.
+  //esp_task_wdt_reset(); // Make sure we don't reset inadvertently.
   ShadeConfigFile file;
   file.begin();
   file.save(this);
@@ -631,7 +631,7 @@ void SomfyShadeController::commit() {
 }
 void SomfyShadeController::writeBackup() {
   if(git.lockFS) return;
-  esp_task_wdt_reset(); // Make sure we don't reset inadvertently.
+  //esp_task_wdt_reset(); // Make sure we don't reset inadvertently.
   ShadeConfigFile file;
   file.begin("/controller.backup", false);
   file.backup(this);
@@ -4001,7 +4001,7 @@ void SomfyRemote::repeatFrame(uint8_t repeat) {
     this->lastFrame.repeats++;
     if(this->lastFrame.bitLength == 80) this->lastFrame.encode80BitFrame(&frm[0], this->lastFrame.repeats);
     somfy.transceiver.sendFrame(frm, this->bitLength == 56 ? 7 : 6, this->bitLength);
-    esp_task_wdt_reset();
+    //esp_task_wdt_reset();
   }
   somfy.transceiver.endTransmit();
   //somfy.processFrame(this->lastFrame, true);
@@ -4016,7 +4016,7 @@ void SomfyShadeController::sendFrame(somfy_frame_t &frame, uint8_t repeat) {
     // silence.
     if(frame.bitLength == 80) frame.encode80BitFrame(&frm[0], i + 1);
     this->transceiver.sendFrame(frm, frame.bitLength == 56 ? 7 : 6, frame.bitLength);
-    esp_task_wdt_reset();
+    //esp_task_wdt_reset();
   }
   this->transceiver.endTransmit();
 }
