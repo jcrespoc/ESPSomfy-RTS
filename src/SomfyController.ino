@@ -36,7 +36,7 @@ void networkLoopTask(void *pvParameters) {
       webServer.loop();     
       sockEmit.loop();
     }
-    vTaskDelay(1 / portTICK_PERIOD_MS);
+    vTaskDelay(pdMS_TO_TICKS(10));
   }
 }
 
@@ -45,20 +45,17 @@ void somfyLoopTask(void *pvParameters) {
 
   while(1) {
     somfy.loop();
-    vTaskDelay(1 / portTICK_PERIOD_MS);
+    vTaskDelay(pdMS_TO_TICKS(1));
   }
 }
 
 void gitLoopTask(void *pvParameters) {
-  // Dedicated low-priority task for GitHub updates (can block without affecting network)
-  const TickType_t xDelay = pdMS_TO_TICKS(10000);
-  
   while(1) {
     // Only attempt git updates when network is stable and not rebooting
     if(!rebootDelay.reboot && net.connected() && !net.softAPOpened) {
       git.loop();
     }
-    vTaskDelay(xDelay);  // Longer delay for low-priority task
+    vTaskDelay(pdMS_TO_TICKS(10000));
   }
 }
 
@@ -91,8 +88,8 @@ void setup() {
     "NetworkTask",                       // Task name
     8192,                                // Stack size (bytes)
     NULL,                                // Task parameter
-    2,                                   // Priority (lower than main loop)
-    &networkTaskHandle                  // Task handle
+    2,                                   // Priority 2
+    &networkTaskHandle                   // Task handle
   );
 
   //somfy.begin();
@@ -101,8 +98,8 @@ void setup() {
     "SomfyTask",                         // Task name
     4096,                                // Stack size (bytes)
     NULL,                                // Task parameter
-    2,                                   // Priority (lowest - background)
-    &somfyTaskHandle                    // Task handle
+    3,                                   // Priority 4
+    &somfyTaskHandle                     // Task handle
   );
 
   xTaskCreate(
@@ -110,7 +107,7 @@ void setup() {
     "GitTask",                           // Task name
     8192,                                // Stack size (bytes)
     NULL,                                // Task parameter
-    1,                                   // Priority (lowest - HTTP updates can block)
+    1,                                   // Priority 1
     &gitTaskHandle                       // Task handle
   );
 
@@ -158,9 +155,11 @@ void loop() {
     timing = millis();
   }
   */
+  /*
   if(rebootDelay.reboot && millis() > rebootDelay.rebootTime) {
     net.end();
     ESP.restart();
   }
+  */
   //esp_task_wdt_reset();
 }
