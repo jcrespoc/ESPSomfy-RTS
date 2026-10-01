@@ -4362,6 +4362,7 @@ void Transceiver::sendFrame(byte *frame, uint8_t sync, uint8_t bitLength) {
       last_bit = 0;
     }
   }
+  
   // End with a 0 no matter what.  This accommodates the 56-bit protocol by telling the
   // motor that there are no more follow on bits.
   if(last_bit == 0) {

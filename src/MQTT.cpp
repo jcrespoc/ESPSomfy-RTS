@@ -112,7 +112,7 @@ void MQTTClass::receive(const char *topic, byte* payload, uint32_t length) {
 bool MQTTClass::connect() {
   //esp_task_wdt_reset();
   if(mqttClient.connected()) return true;
-  if(!settings.MQTT.enabled || this->suspended || (this->lastConnect + 10000 > millis())) return false;
+  if(!settings.MQTT.enabled || this->suspended || (millis() - this->lastConnect < 10000)) return false;
 
   uint64_t mac = ESP.getEfuseMac();
   snprintf(this->clientId, sizeof(this->clientId), "client-%08x%08x", (uint32_t)((mac >> 32) & 0xFFFFFFFF), (uint32_t)(mac & 0xFFFFFFFF));
