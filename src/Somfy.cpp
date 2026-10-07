@@ -3812,10 +3812,7 @@ SomfyShade *SomfyShadeController::addShade() {
   if(shadeId == 255) return nullptr;
   SomfyShade *shade = nullptr;
   for(uint8_t i = 0; i < SOMFY_MAX_SHADES; i++) {
-    if(this->shades[i].getShadeId() == 255) {
-      shade = &this->shades[i];
-      break;
-    }
+    if(this->shades[i].getShadeId() == 255) { shade = &this->shades[i]; break; }
   }
   if(shade) {
     shade->setShadeId(shadeId);
@@ -3913,10 +3910,7 @@ SomfyRoom *SomfyShadeController::addRoom() {
   if(roomId == 0) return nullptr;
   SomfyRoom *room = nullptr;
   for(uint8_t i = 0; i < SOMFY_MAX_ROOMS; i++) {
-    if(this->rooms[i].roomId == 0) {
-      room = &this->rooms[i];
-      break;
-    }
+    if(this->rooms[i].roomId == 0) { room = &this->rooms[i]; break; }
   }
   if(room) {
     room->roomId = roomId;
@@ -3950,10 +3944,7 @@ SomfyGroup *SomfyShadeController::addGroup() {
   if(groupId == 255) return nullptr;
   SomfyGroup *group = nullptr;
   for(uint8_t i = 0; i < SOMFY_MAX_GROUPS; i++) {
-    if(this->groups[i].getGroupId() == 255) {
-      group = &this->groups[i];
-      break;
-    }
+    if(this->groups[i].getGroupId() == 255) { group = &this->groups[i]; break; }
   }
   if(group) {
     group->setGroupId(groupId);
