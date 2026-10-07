@@ -3756,10 +3756,7 @@ SomfyShade *SomfyShadeController::addShade() {
   if(shadeId == 255) return nullptr;
   SomfyShade *shade = nullptr;
   for(uint8_t i = 0; i < SOMFY_MAX_SHADES; i++) {
-    if(this->shades[i].getShadeId() == 255) {
-      shade = &this->shades[i];
-      break;
-    }
+    if(this->shades[i].getShadeId() == 255) { shade = &this->shades[i]; break; }
   }
   if(shade) {
     shade->setShadeId(shadeId);
@@ -3857,10 +3854,7 @@ SomfyRoom *SomfyShadeController::addRoom() {
   if(roomId == 0) return nullptr;
   SomfyRoom *room = nullptr;
   for(uint8_t i = 0; i < SOMFY_MAX_ROOMS; i++) {
-    if(this->rooms[i].roomId == 0) {
-      room = &this->rooms[i];
-      break;
-    }
+    if(this->rooms[i].roomId == 0) { room = &this->rooms[i]; break; }
   }
   if(room) {
     room->roomId = roomId;
@@ -3888,10 +3882,7 @@ SomfyGroup *SomfyShadeController::addGroup() {
   if(groupId == 255) return nullptr;
   SomfyGroup *group = nullptr;
   for(uint8_t i = 0; i < SOMFY_MAX_GROUPS; i++) {
-    if(this->groups[i].getGroupId() == 255) {
-      group = &this->groups[i];
-      break;
-    }
+    if(this->groups[i].getGroupId() == 255) { group = &this->groups[i]; break; }
   }
   if(group) {
     group->setGroupId(groupId);
@@ -4743,20 +4734,26 @@ bool Transceiver::end() {
 }
 void transceiver_config_t::fromJSON(JsonObject& obj) {
     //Serial.print("Deserialize Radio JSON ");
-    if(obj.containsKey("type")) this->type = obj["type"];
-    if(obj.containsKey("CSNPin")) this->CSNPin = obj["CSNPin"];
-    if(obj.containsKey("MISOPin")) this->MISOPin = obj["MISOPin"];
-    if(obj.containsKey("MOSIPin")) this->MOSIPin = obj["MOSIPin"];
-    if(obj.containsKey("RXPin")) this->RXPin = obj["RXPin"];
-    if(obj.containsKey("SCKPin")) this->SCKPin = obj["SCKPin"];
-    if(obj.containsKey("TXPin")) this->TXPin = obj["TXPin"];
-    if(obj.containsKey("rxBandwidth")) this->rxBandwidth = obj["rxBandwidth"]; // float
-    if(obj.containsKey("frequency")) this->frequency = obj["frequency"];  // float
-    if(obj.containsKey("deviation")) this->deviation = obj["deviation"];  // float
-    if(obj.containsKey("enabled")) this->enabled = obj["enabled"];
-    if(obj.containsKey("txPower")) this->txPower = obj["txPower"];
-    if(obj.containsKey("proto")) this->proto = static_cast<radio_proto>(obj["proto"].as<uint8_t>());
-    if(obj.containsKey("radioBoardType")) this->radioBoardType = obj["radioBoardType"];
+    // Gardes en !isNull() et non en containsKey() : containsKey() est VRAI pour une clé portant un
+    // null explicite, et affecter ce null à un float ou un entier donne 0 en silence. C'est ainsi
+    // que rxBandwidth, deviation et txPower tombaient à 0 -- l'UI les tirait d'un <span> non
+    // peuplé (quand /controller échouait), ce qui produisait "rxBandwidth":null dans le payload.
+    // isNull() couvre les deux cas d'un coup, clé absente et null explicite, alors qu'une valeur
+    // légitime false ou 0 n'est PAS nulle et passe donc normalement.
+    if(!obj["type"].isNull()) this->type = obj["type"];
+    if(!obj["CSNPin"].isNull()) this->CSNPin = obj["CSNPin"];
+    if(!obj["MISOPin"].isNull()) this->MISOPin = obj["MISOPin"];
+    if(!obj["MOSIPin"].isNull()) this->MOSIPin = obj["MOSIPin"];
+    if(!obj["RXPin"].isNull()) this->RXPin = obj["RXPin"];
+    if(!obj["SCKPin"].isNull()) this->SCKPin = obj["SCKPin"];
+    if(!obj["TXPin"].isNull()) this->TXPin = obj["TXPin"];
+    if(!obj["rxBandwidth"].isNull()) this->rxBandwidth = obj["rxBandwidth"]; // float
+    if(!obj["frequency"].isNull()) this->frequency = obj["frequency"];  // float
+    if(!obj["deviation"].isNull()) this->deviation = obj["deviation"];  // float
+    if(!obj["enabled"].isNull()) this->enabled = obj["enabled"];
+    if(!obj["txPower"].isNull()) this->txPower = obj["txPower"];
+    if(!obj["proto"].isNull()) this->proto = static_cast<radio_proto>(obj["proto"].as<uint8_t>());
+    if(!obj["radioBoardType"].isNull()) this->radioBoardType = obj["radioBoardType"];
     /*
     if (obj.containsKey("internalCCMode")) this->internalCCMode = obj["internalCCMode"];
     if (obj.containsKey("modulationMode")) this->modulationMode = obj["modulationMode"];
