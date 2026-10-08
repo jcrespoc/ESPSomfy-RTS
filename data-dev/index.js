@@ -1702,7 +1702,7 @@ class Security {
 var security = new Security();
 class General {
     initialized = false;
-    appVersion = 'v2.5.9';
+    appVersion = 'v2.6.0';
     reloadApp = false;
     init() {
         if (this.initialized) return;
@@ -1863,11 +1863,18 @@ class General {
                 return;
             }
             console.log("Settings reçus:", settings);
-            if (typeof somfy !== 'undefined') somfy.initPins();
 
             get('spanFwVersion').innerText = settings.fwVersion;
             get('spanHwVersion').innerText = settings.chipModel.length > 0 ? '-' + settings.chipModel : '';
             get('divContainer').setAttribute('data-chipmodel', settings.chipModel);
+
+            // initPins() APRES data-chipmodel : loadPins() lit cet attribut pour choisir la table
+            // de broches (pinMaps). Appele avant, il ne trouvait rien et retombait sur la table
+            // generique ESP32, qui exclut GPIO 6/7/8/9 (flash SPI du 32 classique) et 3 (UART0).
+            // Un brochage legitime pose sur ces broches -- cas du XIAO-C3 -- n'avait alors aucune
+            // <option> correspondante : le select retombait sur sa premiere entree (GPIO-02) et
+            // l'ecran affichait 2 a la place de la vraie valeur.
+            if (typeof somfy !== 'undefined') somfy.initPins();
 
             this.setAppVersion();
 
@@ -2853,9 +2860,13 @@ class Somfy {
         this.initialized = true;
     }
     initPins() {
-        document
-        .getElementById('selRadioBoardType')
-        .addEventListener('change', e => this.onRadioBoardTypeChanged(e.target));
+        // Mise en place a faire UNE SEULE fois par chargement de page : ecouteurs, listes
+        // d'<option> et valeurs de remplissage ci-dessous. loadGeneral() rappelle initPins() a
+        // chaque reouverture du socket ; sans cette garde, chaque reconnexion rempilait un
+        // ecouteur 'change' et surtout rejouait le ui.toElement de valeurs par defaut plus bas,
+        // ecrasant le brochage reel deja affiche par loadSomfy().
+        if (this.pinsInitialized) return;
+        this.pinsInitialized = true;
 
         const sel = get('selRadioBoardType');
 
@@ -2941,7 +2952,13 @@ class Somfy {
             const selP = get(`selTrans${k}`), inpP = get(`inputTrans${k}`);
             if (selP) selP.style.display = target ? 'inline-block' : 'none';
             if (inpP) {
-                if (isM) inpP.value = (isInit && parseInt(selP?.value || inpP.value, 10)) || def[k];
+                if (isM) {
+                    // GPIO-00 est une broche valide : la tester avec || la rendait falsy et
+                    // faisait basculer sur def[k] (c'est ainsi qu'un TX=0 s'affichait en 13).
+                    // On ne retient donc def[k] que si rien d'exploitable n'a ete lu.
+                    const lu = isInit ? parseInt(selP?.value !== '' && selP?.value != null ? selP.value : inpP.value, 10) : NaN;
+                    inpP.value = isNaN(lu) ? def[k] : lu;
+                }
                 inpP.style.display = isM ? 'inline-block' : 'none';
             }
         });
@@ -3040,6 +3057,22 @@ class Somfy {
             if (el) t.config[k] = parseInt(el.value, 10);
         });
 
+        // Les trois curseurs portent data-setonly="true", donc ui.fromElement() les SAUTE a la
+        // lecture (cf. son filtre sur data-setonly) : leurs cles etaient purement absentes du
+        // payload, le firmware les gardait inchangees (ses tests containsKey) et save() reecrivait
+        // l'ancienne valeur. Regler la bande passante ou la puissance n'avait donc aucun effet, et
+        // une valeur erronee devenait irreparable depuis l'interface. On les lit ici explicitement,
+        // comme les broches juste au-dessus. ui.getValue() applique les conversions declarees dans
+        // index.html -- data-mult="100" pour les deux bandes, et data-datatype="index" +
+        // data-values pour la puissance, qui est un INDICE cote curseur mais des dBm cote firmware.
+        [['rxBandwidth', 'slidRxBandwidth'], ['deviation', 'slidDeviation'], ['txPower', 'slidTxPower']]
+        .forEach(([k, id]) => {
+            const el = get(id);
+            if (!el) return;
+            const v = ui.getValue(el);
+            if (typeof v === 'number' && !isNaN(v)) t.config[k] = v;
+        });
+
             if (!t.config.type || t.config.type === 'none') {
                 ui.errorMessage(d, tr('ERR_RADIO_TYPE_REQUIRED'));
                 valid = false;
@@ -3134,6 +3167,14 @@ class Somfy {
             );
         }
         if (!isNaN(currentVal)) {
+            // Une broche deja configuree sur l'appareil doit rester affichable meme si la table
+            // ne la propose pas (brochage manuel hors liste, ou table generique servie par defaut
+            // faute de data-chipmodel) : sinon l'affectation echoue sans bruit, le select retombe
+            // sur sa premiere <option> et l'ecran annonce une broche que l'appareil n'utilise pas.
+            // Meme rattrapage que dans onRadioBoardTypeChanged() pour les presets de carte.
+            if (![...sel.options].some(o => parseInt(o.value, 10) === currentVal)) {
+                sel.options.add(new Option(`GPIO-${currentVal > 9 ? currentVal : '0' + currentVal}`, currentVal));
+            }
             sel.value = currentVal;
         }
     }
