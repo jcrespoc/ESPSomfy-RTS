@@ -2,7 +2,7 @@
 #include <ELECHOUSE_CC1101_SRC_DRV.h>
 #include <SPI.h>
 #include <WebServer.h>
-#include <esp_task_wdt.h>
+//#include <esp_task_wdt.h>
 #include "Utils.h"
 #include "ConfigSettings.h"
 #include "Somfy.h"
@@ -18,6 +18,7 @@ extern ConfigSettings settings;
 extern MQTTClass mqtt;
 extern GitUpdater git;
 
+static portMUX_TYPE criticalSectionMutex = portMUX_INITIALIZER_UNLOCKED;
 
 uint8_t rxmode = 0;  // Indicates whether the radio is in receive mode.  Just to ensure there isn't more than one interrupt hooked.
 #define SYMBOL 640
@@ -621,7 +622,7 @@ bool SomfyShadeController::begin() {
 }
 void SomfyShadeController::commit() {
   if(git.lockFS) return;
-  esp_task_wdt_reset(); // Make sure we don't reset inadvertently.
+  //esp_task_wdt_reset(); // Make sure we don't reset inadvertently.
   ShadeConfigFile file;
   file.begin();
   file.save(this);
@@ -631,7 +632,7 @@ void SomfyShadeController::commit() {
 }
 void SomfyShadeController::writeBackup() {
   if(git.lockFS) return;
-  esp_task_wdt_reset(); // Make sure we don't reset inadvertently.
+  //esp_task_wdt_reset(); // Make sure we don't reset inadvertently.
   ShadeConfigFile file;
   file.begin("/controller.backup", false);
   file.backup(this);
@@ -660,6 +661,7 @@ void SomfyShade::clear() {
   this->setRemoteAddress(0);
   this->moveStart = 0;
   this->tiltStart = 0;
+  this->lastStateEmit = 0;
   this->noSunStart = 0;
   this->sunStart = 0;
   this->windStart = 0;
@@ -1353,9 +1355,12 @@ void SomfyShade::checkMovement() {
     this->commitMyPosition();
     this->emitState();
   }
-  else if(currDir != this->direction || currPos != floor(this->currentPos) || currTiltDir != this->tiltDirection || currTiltPos != floor(this->currentTiltPos)) {
-    // We need to emit on the socket that our state has changed.
+  else {
+    const bool dirChanged = (currDir != this->direction) || (currTiltDir != this->tiltDirection);
+    const bool posChanged = (currPos != floor(this->currentPos)) || (currTiltPos != floor(this->currentTiltPos));
+    if(dirChanged || (posChanged && (curTime - this->lastStateEmit >= SOMFY_MIN_EMIT_INTERVAL))) {
     this->emitState();
+    }
   }
 }
 #ifdef USE_NVS
@@ -1576,7 +1581,7 @@ void SomfyShade::publishDisco() {
       obj["tilt_command_topic"] = "~/tiltTarget/set";
       obj["tilt_status_topic"] = "~/tiltPosition";
     }
-    snprintf(topic, sizeof(topic), "%s/cover/%d/config", settings.MQTT.discoTopic, this->shadeId);
+    snprintf(topic, sizeof(topic), "%s/cover/%s/%d/config", settings.MQTT.discoTopic, settings.serverId, this->shadeId);
   }
   else {
     obj["payload_on"] = 100;
@@ -1585,7 +1590,7 @@ void SomfyShade::publishDisco() {
     obj["state_on"] = 100;
     obj["state_topic"] = "~/position";
     obj["command_topic"] = "~/target/set";
-    snprintf(topic, sizeof(topic), "%s/switch/%d/config", settings.MQTT.discoTopic, this->shadeId);
+    snprintf(topic, sizeof(topic), "%s/switch/%s/%d/config", settings.MQTT.discoTopic, settings.serverId, this->shadeId);
   }
   
   obj["enabled_by_default"] = true;
@@ -1595,10 +1600,10 @@ void SomfyShade::unpublishDisco() {
   if(!mqtt.connected() || !settings.MQTT.pubDisco) return;
   char topic[128] = "";
   if(this->shadeType != shade_types::drycontact && this->shadeType != shade_types::drycontact2) {
-    snprintf(topic, sizeof(topic), "%s/cover/%d/config", settings.MQTT.discoTopic, this->shadeId);
+    snprintf(topic, sizeof(topic), "%s/cover/%s/%d/config", settings.MQTT.discoTopic, settings.serverId, this->shadeId);
   }
   else
-    snprintf(topic, sizeof(topic), "%s/switch/%d/config", settings.MQTT.discoTopic, this->shadeId);
+    snprintf(topic, sizeof(topic), "%s/switch/%s/%d/config", settings.MQTT.discoTopic, settings.serverId, this->shadeId);
   mqtt.unpublishDisco(topic);
 }
 void SomfyShade::publish() {
@@ -1666,9 +1671,9 @@ void SomfyShade::unpublish(uint8_t id) {
     SomfyShade::unpublish(id, "sunny");
     if(settings.MQTT.pubDisco) {
       char topic[128] = "";
-      snprintf(topic, sizeof(topic), "%s/cover/%d/config", settings.MQTT.discoTopic, id);
+      snprintf(topic, sizeof(topic), "%s/cover/%s/%d/config", settings.MQTT.discoTopic, settings.serverId, id);
       mqtt.unpublishDisco(topic);
-      snprintf(topic, sizeof(topic), "%s/switch/%d/config", settings.MQTT.discoTopic, id);
+      snprintf(topic, sizeof(topic), "%s/switch/%s/%d/config", settings.MQTT.discoTopic, settings.serverId, id);
       mqtt.unpublishDisco(topic);
     }
   }
@@ -1893,6 +1898,7 @@ float SomfyShade::p_myTiltPos(float pos) {
 
 void SomfyShade::emitState(const char *evt) { this->emitState(255, evt); }
 void SomfyShade::emitState(uint8_t num, const char *evt) {
+  this->lastStateEmit = millis();
   JsonSockEvent *json = sockEmit.beginEmit(evt);
   json->beginObject();
   json->addElem("shadeId", this->shadeId);
@@ -4020,7 +4026,7 @@ void SomfyRemote::repeatFrame(uint8_t repeat) {
     this->lastFrame.repeats++;
     if(this->lastFrame.bitLength == 80) this->lastFrame.encode80BitFrame(&frm[0], this->lastFrame.repeats);
     somfy.transceiver.sendFrame(frm, this->bitLength == 56 ? 7 : 6, this->bitLength);
-    esp_task_wdt_reset();
+    //esp_task_wdt_reset();
   }
   somfy.transceiver.endTransmit();
   //somfy.processFrame(this->lastFrame, true);
@@ -4035,7 +4041,7 @@ void SomfyShadeController::sendFrame(somfy_frame_t &frame, uint8_t repeat) {
     // silence.
     if(frame.bitLength == 80) frame.encode80BitFrame(&frm[0], i + 1);
     this->transceiver.sendFrame(frm, frame.bitLength == 56 ? 7 : 6, frame.bitLength);
-    esp_task_wdt_reset();
+    //esp_task_wdt_reset();
   }
   this->transceiver.endTransmit();
 }
@@ -4255,7 +4261,10 @@ static const uint32_t tempo_if_gap = 30415;  // Gap between frames
 
 static int16_t  bitMin = SYMBOL * TOLERANCE_MIN;
 static somfy_rx_t somfy_rx;
-static somfy_rx_queue_t rx_queue;
+#define RX_PULSE_BUFFERS 4
+static uint16_t rx_pulse_buffers[RX_PULSE_BUFFERS][MAX_TIMINGS];
+static volatile uint8_t rx_pulse_slot = 0;
+static QueueHandle_t somfyRxQueue = nullptr;
 static somfy_tx_queue_t tx_queue;
 bool somfy_tx_queue_t::pop(somfy_tx_t *tx) {
   // Read the oldest index.
@@ -4303,28 +4312,6 @@ void somfy_tx_queue_t::push(uint8_t hwsync, uint8_t *payload, uint8_t bit_length
   this->index[0] = first;
   this->delay_time = millis() + TX_QUEUE_DELAY; // We do not want to process this frame until a full frame beat has passed.
 }
-void somfy_rx_queue_t::init() { 
-  Serial.println("Initializing RX Queue");
-  for (uint8_t i = 0; i < MAX_RX_BUFFER; i++)
-    this->items[i].clear();
-  memset(&this->index[0], 0xFF, MAX_RX_BUFFER);
-  this->length = 0;
-}
-bool somfy_rx_queue_t::pop(somfy_rx_t *rx) {
-  // Read off the data from the oldest index.
-  //Serial.println("Popping RX Queue");
-  for(int8_t i = MAX_RX_BUFFER - 1; i >= 0; i--) {
-    if(this->index[i] < MAX_RX_BUFFER) {
-      uint8_t ndx = this->index[i];
-      memcpy(rx, &this->items[this->index[i]], sizeof(somfy_rx_t));
-      this->items[ndx].clear();
-      if(this->length > 0) this->length--;
-      this->index[i] = 255;
-      return true;      
-    }
-  }
-  return false;
-}
 
 void Transceiver::sendFrame(byte *frame, uint8_t sync, uint8_t bitLength) {
   if(!this->config.enabled) return;
@@ -4347,6 +4334,8 @@ void Transceiver::sendFrame(byte *frame, uint8_t sync, uint8_t bitLength) {
     //delayMicroseconds(9565);
     //delay(80);
   }
+
+  portENTER_CRITICAL(&criticalSectionMutex);
   // Depending on the bitness of the protocol we will be sending a different hwsync.
   // 56-bit 2 pulses for the first frame and 7 for the repeats
   // 80-bit 24 pulses for the first frame and 14 pulses for the repeats
@@ -4381,6 +4370,8 @@ void Transceiver::sendFrame(byte *frame, uint8_t sync, uint8_t bitLength) {
       last_bit = 0;
     }
   }
+  portEXIT_CRITICAL(&criticalSectionMutex);
+
   // End with a 0 no matter what.  This accommodates the 56-bit protocol by telling the
   // motor that there are no more follow on bits.
   if(last_bit == 0) {
@@ -4408,13 +4399,17 @@ void RECEIVE_ATTR Transceiver::handleReceive() {
         // We need to ignore this bit.
         // REMOVE THIS AFTER WE DETERMINE THAT THE out-of-bounds stuff isn't a problem.  If there are bits
         // from the previous frame then we will capture this data here.
-        if(somfy_rx.pulseCount < MAX_TIMINGS && somfy_rx.cpt_synchro_hw > 0) somfy_rx.pulses[somfy_rx.pulseCount++] = duration;
+        if(somfy_rx.pulseCount < MAX_TIMINGS && somfy_rx.cpt_synchro_hw > 0) {
+            rx_pulse_buffers[rx_pulse_slot][somfy_rx.pulseCount++] = (uint16_t)duration;
+        }
         return;
     }
     last_time = time;
     switch (somfy_rx.status) {
     case waiting_synchro:
-        if(somfy_rx.pulseCount < MAX_TIMINGS) somfy_rx.pulses[somfy_rx.pulseCount++] = duration;
+        if(somfy_rx.pulseCount < MAX_TIMINGS) {
+            rx_pulse_buffers[rx_pulse_slot][somfy_rx.pulseCount++] = (uint16_t)duration;
+        }
         if (duration > tempo_synchro_hw_min && duration < tempo_synchro_hw_max) {
             // We have found a hardware sync bit.  There should be at least 4 of these.
             ++somfy_rx.cpt_synchro_hw;
@@ -4456,7 +4451,9 @@ void RECEIVE_ATTR Transceiver::handleReceive() {
         }
         break;
     case receiving_data:
-        if(somfy_rx.pulseCount < MAX_TIMINGS) somfy_rx.pulses[somfy_rx.pulseCount++] = duration;
+        if(somfy_rx.pulseCount < MAX_TIMINGS) {
+            rx_pulse_buffers[rx_pulse_slot][somfy_rx.pulseCount++] = (uint16_t)duration;
+        }
         // We should be receiving data at this point.
         if (duration > tempo_symbol_min && duration < tempo_symbol_max && !somfy_rx.waiting_half_symbol) {
             somfy_rx.previous_bit = 1 - somfy_rx.previous_bit;
@@ -4485,44 +4482,34 @@ void RECEIVE_ATTR Transceiver::handleReceive() {
             somfy_rx.cpt_bits = 0;
             somfy_rx.bit_length = 56;
             somfy_rx.status = waiting_synchro;
-            somfy_rx.pulses[0] = duration;
+            rx_pulse_buffers[rx_pulse_slot][0] = (uint16_t)duration;
         }
         break;
     default:
         break;
     }
     if (somfy_rx.status == receiving_data && somfy_rx.cpt_bits >= somfy_rx.bit_length) {
-        // Since we are operating within the interrupt all data really needs to be static
-        // for the handoff to the frame decoder.  For this reason we are buffering up to
-        // 3 total frames.  Althought it may not matter considering the length of a packet
-        // will likely not push over the loop timing.  For now lets assume that there
-        // may be some pressure on the loop for features.
-        if(rx_queue.length >= MAX_RX_BUFFER) {
-          // We have overflowed the buffer simply empty the last item
-          // in this instance we will simply throw it away.
-          uint8_t ndx = rx_queue.index[MAX_RX_BUFFER - 1];
-          if(ndx < MAX_RX_BUFFER) rx_queue.items[ndx].pulseCount = 0;
-          //memset(&this->items[ndx], 0x00, sizeof(somfy_rx_t));
-          rx_queue.index[MAX_RX_BUFFER - 1] = 255;
-          rx_queue.length--;
+        somfy_rx_t completed_rx;
+        completed_rx.status = complete;
+        completed_rx.bit_length = somfy_rx.bit_length;
+        completed_rx.cpt_synchro_hw = somfy_rx.cpt_synchro_hw;
+        completed_rx.cpt_bits = somfy_rx.cpt_bits;
+        completed_rx.previous_bit = somfy_rx.previous_bit;
+        completed_rx.waiting_half_symbol = false;
+        memcpy(completed_rx.payload, somfy_rx.payload, sizeof(completed_rx.payload));
+
+        completed_rx.pulseCount = somfy_rx.pulseCount;
+        completed_rx.pulses = rx_pulse_buffers[rx_pulse_slot];
+        rx_pulse_slot = (rx_pulse_slot + 1) % RX_PULSE_BUFFERS;
+
+        BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+        if (somfyRxQueue != nullptr) {
+            xQueueSendFromISR(somfyRxQueue, &completed_rx, &xHigherPriorityTaskWoken);
+            if (xHigherPriorityTaskWoken) {
+                portYIELD_FROM_ISR();
+            }
         }
-        uint8_t first = 0;
-        // Place this record in the first empty slot.  There will
-        // be one since we cleared a space above should there
-        // be an overflow.
-        for(uint8_t i = 0; i < MAX_RX_BUFFER; i++) {
-          if(rx_queue.items[i].pulseCount == 0) {
-            first = i;
-            memcpy(&rx_queue.items[i], &somfy_rx, sizeof(somfy_rx_t));
-            break;
-          }
-        }
-        // Move the index so that it is the at position 0.  The oldest item will fall off.
-        for(uint8_t i = MAX_RX_BUFFER - 1; i > 0; i--) {
-          rx_queue.index[i] = rx_queue.index[i - 1];
-        }
-        rx_queue.length++;
-        rx_queue.index[0] = first;
+
         memset(&somfy_rx.payload, 0x00, sizeof(somfy_rx.payload));
         somfy_rx.cpt_synchro_hw = 0;
         somfy_rx.previous_bit = 0x00;
@@ -4575,7 +4562,7 @@ void Transceiver::processFrequencyScan(bool received) {
       lastScan = millis();
       this->emitFrequencyScan();
       currFreq += 0.01f;
-      if(currFreq > 434.0f) currFreq = 433.0f;
+      if(currFreq >= 434.0f) currFreq = 433.0f;
       ELECHOUSE_cc1101.setMHZ(currFreq);
     }
   }
@@ -4608,9 +4595,7 @@ void Transceiver::emitFrequencyScan(uint8_t num) {
 }
 bool Transceiver::receive(somfy_rx_t *rx) {
     // Check to see if there is anything in the buffer
-    if(rx_queue.length > 0) {
-      //Serial.printf("Processing receive %d\n", rx_queue.length);
-      rx_queue.pop(rx);
+    if(somfyRxQueue != nullptr && xQueueReceive(somfyRxQueue, rx, 0) == pdTRUE) {
       this->frame.decodeFrame(rx);
       this->emitFrame(&this->frame, rx);
       return this->frame.valid;
@@ -4633,7 +4618,7 @@ void Transceiver::emitFrame(somfy_frame_t *frame, somfy_rx_t *rx) {
     if(frame->cmd == somfy_commands::StepUp || frame->cmd == somfy_commands::StepDown)
       json->addElem("stepSize", frame->stepSize);
     json->beginArray("pulses");
-    if(rx) {
+    if(rx && rx->pulses) {
       for(uint16_t i = 0; i < rx->pulseCount; i++) {
         json->addElem((uint32_t)rx->pulses[i]);
       }
@@ -4675,8 +4660,7 @@ void Transceiver::emitFrame(somfy_frame_t *frame, somfy_rx_t *rx) {
   }
 }
 void Transceiver::clearReceived(void) {
-    //packet_received = false;
-    //memset(receive_buffer, 0x00, sizeof(receive_buffer));
+    if(somfyRxQueue != nullptr) xQueueReset(somfyRxQueue);
     if(this->config.enabled)
       //attachInterrupt(interruptPin, handleReceive, FALLING);
       attachInterrupt(interruptPin, handleReceive, CHANGE);
@@ -5089,7 +5073,11 @@ void transceiver_config_t::apply() {
 bool Transceiver::begin() {
     this->config.load();
     this->config.apply();
-    rx_queue.init();
+    if(somfyRxQueue == nullptr) {
+        somfyRxQueue = xQueueCreate(MAX_RX_BUFFER, sizeof(somfy_rx_t));
+    } else {
+        xQueueReset(somfyRxQueue);
+    }
     return true;
 }
 void Transceiver::loop() {

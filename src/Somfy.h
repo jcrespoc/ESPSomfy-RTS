@@ -1,5 +1,7 @@
 #ifndef SOMFY_H
 #define SOMFY_H
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
 #include "ConfigSettings.h"
 #include "WResp.h"
 
@@ -19,6 +21,7 @@
 #define SOMFY_WIND_TIMEOUT SECS_TO_MILLIS(2)
 #define SOMFY_NO_WIND_TIMEOUT MINS_TO_MILLIS(12)
 #define SOMFY_NO_WIND_REMOTE_TIMEOUT SECS_TO_MILLIS(30)
+#define SOMFY_MIN_EMIT_INTERVAL 150
 
 
 enum class radio_proto : byte { // Ordinal byte 0-255
@@ -83,7 +86,7 @@ String translateSomfyCommand(const somfy_commands cmd);
 somfy_commands translateSomfyCommand(const String& string);
 
 #define MAX_TIMINGS 300
-#define MAX_RX_BUFFER 3
+#define MAX_RX_BUFFER 4
 #define MAX_TX_BUFFER 5
 
 typedef enum {
@@ -101,29 +104,18 @@ struct somfy_rx_t {
       this->previous_bit = 0;
       this->waiting_half_symbol = false;
       memset(this->payload, 0, sizeof(this->payload));
-      memset(this->pulses, 0, sizeof(this->pulses));
+      this->pulses = nullptr;
       this->pulseCount = 0;
     }
-    t_status status;
+    volatile t_status status = waiting_synchro;
     uint8_t bit_length = 56;
-    uint8_t cpt_synchro_hw = 0;
+    volatile uint8_t cpt_synchro_hw = 0;
     uint8_t cpt_bits = 0;
     uint8_t previous_bit = 0;
-    bool waiting_half_symbol;
-    uint8_t payload[10];
-    unsigned int pulses[MAX_TIMINGS];
+    bool waiting_half_symbol = false;
+    uint8_t payload[10] = {0};
+    uint16_t *pulses = nullptr;
     uint16_t pulseCount = 0;
-};
-// A simple FIFO queue to hold rx buffers.  We are using
-// a byte index to make it so we don't have to reorganize
-// the storage each time we push or pop.
-struct somfy_rx_queue_t {
-  void init();
-  uint8_t length = 0;
-  uint8_t index[MAX_RX_BUFFER];
-  somfy_rx_t items[MAX_RX_BUFFER];
-  void push(somfy_rx_t *rx);
-  bool pop(somfy_rx_t *rx);
 };
 struct somfy_tx_t {
   void clear() {
@@ -268,6 +260,7 @@ class SomfyShade : public SomfyRemote {
     uint8_t shadeId = 255;
     uint64_t moveStart = 0;
     uint64_t tiltStart = 0;
+    uint64_t lastStateEmit = 0;
     uint64_t noSunStart = 0;
     uint64_t sunStart = 0;
     uint64_t windStart = 0;

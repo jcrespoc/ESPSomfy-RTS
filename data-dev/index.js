@@ -846,7 +846,7 @@ function stepDeviceGpio(pinKey, direction, prefix, boardSelectId, isManualCallba
 
         let next = current + direction;
         const cm = (get('divContainer').getAttribute('data-chipmodel') || "").toLowerCase();
-        const pm = pinMaps.find(x => x.name === cm) || { maxPins: 39 };
+        const pm = pinMaps.find(x => x.name === cm.split('_')[0]) || { maxPins: 39 };
 
         if (next < 0 || next > pm.maxPins) return;
 
@@ -1702,7 +1702,7 @@ class Security {
 var security = new Security();
 class General {
     initialized = false;
-    appVersion = 'v2.6.0';
+    appVersion = 'v2.5.9';
     reloadApp = false;
     init() {
         if (this.initialized) return;
@@ -1863,18 +1863,10 @@ class General {
                 return;
             }
             console.log("Settings reçus:", settings);
-
+            get('divContainer').setAttribute('data-chipmodel', settings.chipModel);
+            if (typeof somfy !== 'undefined') somfy.initPins();
             get('spanFwVersion').innerText = settings.fwVersion;
             get('spanHwVersion').innerText = settings.chipModel.length > 0 ? '-' + settings.chipModel : '';
-            get('divContainer').setAttribute('data-chipmodel', settings.chipModel);
-
-            // initPins() APRES data-chipmodel : loadPins() lit cet attribut pour choisir la table
-            // de broches (pinMaps). Appele avant, il ne trouvait rien et retombait sur la table
-            // generique ESP32, qui exclut GPIO 6/7/8/9 (flash SPI du 32 classique) et 3 (UART0).
-            // Un brochage legitime pose sur ces broches -- cas du XIAO-C3 -- n'avait alors aucune
-            // <option> correspondante : le select retombait sur sa premiere entree (GPIO-02) et
-            // l'ecran affichait 2 a la place de la vraie valeur.
-            if (typeof somfy !== 'undefined') somfy.initPins();
 
             this.setAppVersion();
 
@@ -2822,6 +2814,9 @@ class Somfy {
     frames = [];
     isScanClosing = false;
     scanObserver = null;
+    calTimer = null;
+    calStartTime = 0;
+    calType = null;
     shadeTypes = [
         { type: 0, name: 'Roller Shade', ico: 'svg-window-shade', lift: true, sun: true, fcmd: true, fpos: true },
         { type: 1, name: 'Blind', ico: 'svg-window-blind', lift: true, tilt: true, sun: true, fcmd: true, fpos: true },
@@ -2860,16 +2855,11 @@ class Somfy {
         this.initialized = true;
     }
     initPins() {
-        // Mise en place a faire UNE SEULE fois par chargement de page : ecouteurs, listes
-        // d'<option> et valeurs de remplissage ci-dessous. loadGeneral() rappelle initPins() a
-        // chaque reouverture du socket ; sans cette garde, chaque reconnexion rempilait un
-        // ecouteur 'change' et surtout rejouait le ui.toElement de valeurs par defaut plus bas,
-        // ecrasant le brochage reel deja affiche par loadSomfy().
-        if (this.pinsInitialized) return;
-        this.pinsInitialized = true;
+        document
+        .getElementById('selRadioBoardType')
+        .addEventListener('change', e => this.onRadioBoardTypeChanged(e.target));
 
         const sel = get('selRadioBoardType');
-
         sel.addEventListener('change', e => this.onRadioBoardTypeChanged(e.target));
 
         this.loadPins('inout', get('selTransSCKPin'));
@@ -2952,13 +2942,7 @@ class Somfy {
             const selP = get(`selTrans${k}`), inpP = get(`inputTrans${k}`);
             if (selP) selP.style.display = target ? 'inline-block' : 'none';
             if (inpP) {
-                if (isM) {
-                    // GPIO-00 est une broche valide : la tester avec || la rendait falsy et
-                    // faisait basculer sur def[k] (c'est ainsi qu'un TX=0 s'affichait en 13).
-                    // On ne retient donc def[k] que si rien d'exploitable n'a ete lu.
-                    const lu = isInit ? parseInt(selP?.value !== '' && selP?.value != null ? selP.value : inpP.value, 10) : NaN;
-                    inpP.value = isNaN(lu) ? def[k] : lu;
-                }
+                if (isM) inpP.value = (isInit && parseInt(selP?.value || inpP.value, 10)) || def[k];
                 inpP.style.display = isM ? 'inline-block' : 'none';
             }
         });
@@ -3057,29 +3041,13 @@ class Somfy {
             if (el) t.config[k] = parseInt(el.value, 10);
         });
 
-        // Les trois curseurs portent data-setonly="true", donc ui.fromElement() les SAUTE a la
-        // lecture (cf. son filtre sur data-setonly) : leurs cles etaient purement absentes du
-        // payload, le firmware les gardait inchangees (ses tests containsKey) et save() reecrivait
-        // l'ancienne valeur. Regler la bande passante ou la puissance n'avait donc aucun effet, et
-        // une valeur erronee devenait irreparable depuis l'interface. On les lit ici explicitement,
-        // comme les broches juste au-dessus. ui.getValue() applique les conversions declarees dans
-        // index.html -- data-mult="100" pour les deux bandes, et data-datatype="index" +
-        // data-values pour la puissance, qui est un INDICE cote curseur mais des dBm cote firmware.
-        [['rxBandwidth', 'slidRxBandwidth'], ['deviation', 'slidDeviation'], ['txPower', 'slidTxPower']]
-        .forEach(([k, id]) => {
-            const el = get(id);
-            if (!el) return;
-            const v = ui.getValue(el);
-            if (typeof v === 'number' && !isNaN(v)) t.config[k] = v;
-        });
-
             if (!t.config.type || t.config.type === 'none') {
                 ui.errorMessage(d, tr('ERR_RADIO_TYPE_REQUIRED'));
                 valid = false;
             }
 
             if (valid) {
-                const cm = (get('divContainer').getAttribute('data-chipmodel') || "").toLowerCase(),
+                const cm = (get('divContainer').getAttribute('data-chipmodel') || "").toLowerCase().split('_')[0],
                 pm = this.pinMaps.find(x => x.name === cm) || { maxPins: 39 };
 
                 try {
@@ -3150,7 +3118,7 @@ class Somfy {
         let currentVal = (typeof opt !== 'undefined') ? opt : parseInt(sel.value, 10);
         while (sel.firstChild) sel.removeChild(sel.firstChild);
 
-        let cm = get('divContainer').getAttribute('data-chipmodel');
+        let cm = (get('divContainer').getAttribute('data-chipmodel') || "").toLowerCase().split('_')[0];
         let pm = this.pinMaps.find(x => x.name === cm);
         if (!pm) {
             pm = { name: '', maxPins: 39, inputs: [0, 1, 6, 7, 8, 9, 10, 11, 37, 38], outputs: [3, 6, 7, 8, 9, 10, 11, 34, 35, 36, 37, 38, 39] };
@@ -3167,14 +3135,6 @@ class Somfy {
             );
         }
         if (!isNaN(currentVal)) {
-            // Une broche deja configuree sur l'appareil doit rester affichable meme si la table
-            // ne la propose pas (brochage manuel hors liste, ou table generique servie par defaut
-            // faute de data-chipmodel) : sinon l'affectation echoue sans bruit, le select retombe
-            // sur sa premiere <option> et l'ecran annonce une broche que l'appareil n'utilise pas.
-            // Meme rattrapage que dans onRadioBoardTypeChanged() pour les presets de carte.
-            if (![...sel.options].some(o => parseInt(o.value, 10) === currentVal)) {
-                sel.options.add(new Option(`GPIO-${currentVal > 9 ? currentVal : '0' + currentVal}`, currentVal));
-            }
             sel.value = currentVal;
         }
     }
@@ -4533,6 +4493,7 @@ class Somfy {
         }
     }
     showEditShade(bShow) {
+        this.stopCalibrateTime(false);
         let el = get('divLinking');
         if (el) el.remove();
         el = get('divLinkRepeater');
@@ -4609,6 +4570,7 @@ class Somfy {
         }
     }
     saveShade() {
+        this.stopCalibrateTime(false);
         const g = get,
         sId = parseInt(g('spanShadeId').innerText, 10),
         obj = ui.fromElement(g('somfyShade')),
@@ -4645,6 +4607,125 @@ class Somfy {
             this.updateShadeList();
             this.openEditShade(shade.shadeId);
         });
+    }
+    showCalHint(type, show) {
+        if (this.calTimer) return;
+        const hint = document.getElementById(type === 'up' ? 'hintCalUpTime' : 'hintCalDownTime');
+        if (!hint) return;
+        if (show) {
+            hint.innerText = tr(type === 'up' ? 'HINT_CAL_UP' : 'HINT_CAL_DOWN');
+            hint.classList.remove('measuring');
+            hint.classList.add('visible');
+        } else {
+            hint.classList.remove('visible', 'measuring');
+        }
+    }
+    stopCalibrateTime(sendStop = false) {
+        if (this.calTimer) {
+            clearInterval(this.calTimer);
+            this.calTimer = null;
+        }
+        const shadeId = parseInt(document.getElementById('spanShadeId')?.innerText, 10);
+        if (sendStop && !isNaN(shadeId) && shadeId < 255) {
+            this.sendCommand(shadeId, 'my');
+        }
+        ['btnCalUpTime', 'btnCalDownTime'].forEach(id => {
+            const btn = document.getElementById(id);
+            if (btn) {
+                btn.innerText = 'CAL';
+                btn.classList.remove('measuring');
+                btn.disabled = false;
+            }
+        });
+        ['hintCalUpTime', 'hintCalDownTime'].forEach(id => {
+            const hint = document.getElementById(id);
+            if (hint) {
+                hint.classList.remove('visible', 'measuring');
+                hint.innerText = '';
+            }
+        });
+        this.calType = null;
+        this.calStartTime = 0;
+    }
+    toggleCalibrateTime(dir) {
+        const shadeId = parseInt(document.getElementById('spanShadeId')?.innerText, 10);
+        if (this.calTimer && this.calType === dir) {
+            const finalMs = Math.round(Date.now() - this.calStartTime);
+            const fld = document.getElementById(dir === 'up' ? 'fldShadeUpTime' : 'fldShadeDownTime');
+
+            if (this.calTimer) {
+                clearInterval(this.calTimer);
+                this.calTimer = null;
+            }
+            if (!isNaN(shadeId) && shadeId < 255) {
+                this.sendCommand(shadeId, 'my');
+            }
+            if (fld) {
+                fld.value = finalMs;
+                fld.dispatchEvent(new Event('input', { bubbles: true }));
+                fld.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            ['btnCalUpTime', 'btnCalDownTime'].forEach(id => {
+                const btn = document.getElementById(id);
+                if (btn) {
+                    btn.innerText = 'CAL';
+                    btn.classList.remove('measuring');
+                    btn.disabled = false;
+                }
+            });
+            ['hintCalUpTime', 'hintCalDownTime'].forEach(id => {
+                const hint = document.getElementById(id);
+                if (hint) {
+                    hint.classList.remove('visible', 'measuring');
+                    hint.innerText = '';
+                }
+            });
+            this.calType = null;
+            this.calStartTime = 0;
+        } else {
+            if (this.calTimer) {
+                this.stopCalibrateTime(false);
+            }
+            this.calType = dir;
+            this.calStartTime = Date.now();
+            const activeBtn = document.getElementById(dir === 'up' ? 'btnCalUpTime' : 'btnCalDownTime');
+            const otherBtn = document.getElementById(dir === 'up' ? 'btnCalDownTime' : 'btnCalUpTime');
+            const fld = document.getElementById(dir === 'up' ? 'fldShadeUpTime' : 'fldShadeDownTime');
+            const activeHint = document.getElementById(dir === 'up' ? 'hintCalUpTime' : 'hintCalDownTime');
+            const otherHint = document.getElementById(dir === 'up' ? 'hintCalDownTime' : 'hintCalUpTime');
+
+            if (activeBtn) {
+                activeBtn.innerText = 'STOP';
+                activeBtn.classList.add('measuring');
+            }
+            if (otherBtn) {
+                otherBtn.disabled = true;
+            }
+            if (otherHint) {
+                otherHint.classList.remove('visible', 'measuring');
+                otherHint.innerText = '';
+            }
+            if (activeHint) {
+                activeHint.innerText = tr('HINT_CAL_STOP');
+                activeHint.classList.add('visible', 'measuring');
+            }
+            if (fld) {
+                fld.value = 0;
+                fld.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            if (!isNaN(shadeId) && shadeId < 255) {
+                this.sendCommand(shadeId, dir === 'up' ? 'up' : 'down');
+            }
+            this.calTimer = setInterval(() => {
+                const elapsed = Math.round(Date.now() - this.calStartTime);
+                if (fld) {
+                    fld.value = elapsed;
+                }
+                if (elapsed >= 180000) {
+                    this.toggleCalibrateTime(dir);
+                }
+            }, 100);
+        }
     }
     saveGroup() {
         const g = get,
@@ -6051,6 +6132,7 @@ class Firmware {
         if (!silent) overlay = ui.waitMessage(document.getElementById('divContainer'));
         try {
             let ret = { resp: { ok: false }, info: null };
+            console.log(`Fetching release info for tag: ${tag}`);
             ret.resp = await fetch(`https://api.github.com/repos/xkain/ESPSomfy-RTS/releases/tags/${tag}`);
             if (ret.resp.ok) {
                 ret.info = await ret.resp.json();

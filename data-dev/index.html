@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -15,12 +15,12 @@
       if(l)document.documentElement.lang=l;
     })();
     </script>
-    <link rel="stylesheet" href="base.css?v=2.6.0c">
-    <link rel="stylesheet" href="main.css?v=2.6.0c">
-    <link rel="stylesheet" href="overlays.css?v=2.6.0c">
+    <link rel="stylesheet" href="base.css?v=2.5.9c">
+    <link rel="stylesheet" href="main.css?v=2.5.9c">
+    <link rel="stylesheet" href="overlays.css?v=2.5.9c">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
 
-    <script src="index.js?v=2.6.0c"></script>
+    <script src="index.js?v=2.5.9c"></script>
 </head>
 <body>
     <header class="top-bar">
@@ -1058,14 +1058,26 @@
                             <div id="divLinkedRemoteList" class="LinkedRemoteList"></div>
                             <div id="divShadeTimings" class="unibloc">
                                 <div id="divLiftSettings">
-                                    <div>
-                                        <label class="label" for="fldShadeUpTime" tr="SHADE_UP_TIME"></label>
-                                        <input id="fldShadeUpTime" class="inputAndSelect" name="shadeUpTime" data-bind="upTime" data-datatype="int" type="number" length=5 tr="SHADE_MS_PLH"  placeholder="milliseconds"/>
+                                    <div class="timingRow">
+                                        <div class="timingInput">
+                                            <label class="label" for="fldShadeUpTime" tr="SHADE_UP_TIME"></label>
+                                            <input id="fldShadeUpTime" class="inputAndSelect" name="shadeUpTime" data-bind="upTime" data-datatype="int" type="number" length=5 tr="SHADE_MS_PLH"  placeholder="milliseconds"/>
+                                        </div>
+                                        <div id="hintCalUpTime" class="timingHint"></div>
+                                        <div class="timingAction">
+                                            <button id="btnCalUpTime" type="button" class="btnCal" onclick="somfy.toggleCalibrateTime('up');" onmouseenter="somfy.showCalHint('up', true);" onmouseleave="somfy.showCalHint('up', false);">CAL</button>
+                                        </div>
                                     </div>
                                     <hr>
-                                    <div>
-                                        <label class="label" for="fldShadeDownTime" tr="SHADE_DOWN_TIME"></label>
-                                        <input id="fldShadeDownTime" class="inputAndSelect" name="shadeDownTime" type="number" data-bind="downTime" data-datatype="int" length=5 tr="SHADE_MS_PLH"  placeholder="milliseconds"/>
+                                    <div class="timingRow">
+                                        <div class="timingInput">
+                                            <label class="label" for="fldShadeDownTime" tr="SHADE_DOWN_TIME"></label>
+                                            <input id="fldShadeDownTime" class="inputAndSelect" name="shadeDownTime" type="number" data-bind="downTime" data-datatype="int" length=5 tr="SHADE_MS_PLH"  placeholder="milliseconds"/>
+                                        </div>
+                                        <div id="hintCalDownTime" class="timingHint"></div>
+                                        <div class="timingAction">
+                                            <button id="btnCalDownTime" type="button" class="btnCal" onclick="somfy.toggleCalibrateTime('down');" onmouseenter="somfy.showCalHint('down', true);" onmouseleave="somfy.showCalHint('down', false);">CAL</button>
+                                        </div>
                                     </div>
                                 </div>
                                 <div id="divTiltSettings" style="display:none;">
