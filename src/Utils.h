@@ -9,6 +9,17 @@
 
 
 [[maybe_unused]] static void SETCHARPROP(char *prop, const char *value, size_t size) {strncpy(prop, value, size); prop[size - 1] = '\0';}
+// Le SDK tient le flash SPI interne (6-11) et la PSRAM des WROVER (16/17) pour des sorties
+// valides, alors qu'y ecrire fait planter l'appareil. Disponibilite : affaire des usesPin().
+[[maybe_unused]] static bool isUsableOutputPin(int pin) {
+  if(pin < 0 || pin > 48) return false;
+  if(!GPIO_IS_VALID_OUTPUT_GPIO(pin)) return false;
+#if CONFIG_IDF_TARGET_ESP32
+  if(pin >= 6 && pin <= 11) return false;
+  if(psramFound() && (pin == 16 || pin == 17)) return false;
+#endif
+  return true;
+}
 /*
 namespace util { 
   // Createa a custom to_string function.  C++ can be annoying

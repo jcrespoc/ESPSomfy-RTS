@@ -128,10 +128,16 @@ function refreshUptime() {
         displayUptime(ctx.netUptime || 0, 'net-display');
     });
 }
+// ui.errorMessage() injecte son message via innerHTML, et un nom est saisi par l'utilisateur.
+function escHtml(str) {
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
 var errors = [
     { code: -10, key: 'ERR_PIN_TRANSCEIVER' },
     { code: -11, key: 'ERR_PIN_ETHERNET' },
     { code: -12, key: 'ERR_PIN_MOTOR' },
+    { code: -13, key: 'ERR_PIN_UNUSABLE' },
+    { code: -14, key: 'ERR_REMOTE_ADDRESS_IN_USE' },
     { code: -21, key: 'ERR_GIT_FLASH_WRITE' },
     { code: -22, key: 'ERR_GIT_FLASH_ERASE' },
     { code: -23, key: 'ERR_GIT_FLASH_READ' },
@@ -4768,6 +4774,16 @@ class Somfy {
             }
         }
     }
+    // Double le controle firmware (code -14) pour NOMMER le conflit. Domaine = adresses propres
+    // des equipements et des groupes, pas les linkedRemotes (ecoutees, pas emises).
+    remoteAddressOwner(address, exceptShadeId, exceptGroupId) {
+        const addr = Number(address);
+        if (!addr) return null;
+        const shade = (this.shades || []).find(s => s.shadeId !== exceptShadeId && Number(s.remoteAddress) === addr);
+        if (shade) return { name: shade.name, isGroup: false };
+        const group = (this.groups || []).find(g => g.groupId !== exceptGroupId && Number(g.remoteAddress) === addr);
+        return group ? { name: group.name, isGroup: true } : null;
+    }
     saveShade() {
         const g = get,
         sId = parseInt(g('spanShadeId').innerText, 10),
@@ -4783,6 +4799,9 @@ class Somfy {
 
         const basicError = checks.find(c => c[0]);
         if (basicError) return ui.errorMessage(settings, tr(basicError[1]));
+        // sId vaut NaN sur une creation : rien n'est ecarte du balayage, c'est voulu.
+        const addrOwner = this.remoteAddressOwner(obj.remoteAddress, sId, 255);
+        if (addrOwner) return ui.errorMessage(settings, tr(addrOwner.isGroup ? 'ERR_REMOTE_ADDRESS_USED_GROUP' : 'ERR_REMOTE_ADDRESS_USED_DEVICE').replace('{name}', escHtml(addrOwner.name)));
         if (obj.proto === 8 || obj.proto === 9) {
             const isSp = [5, 14, 15, 16, 10].includes(obj.shadeType);
 
@@ -4819,6 +4838,8 @@ class Somfy {
         ];
         const error = checks.find(c => c[0]);
         if (error) return ui.errorMessage(tr(error[1]));
+        const addrOwner = this.remoteAddressOwner(obj.remoteAddress, 255, groupId);
+        if (addrOwner) return ui.errorMessage(tr(addrOwner.isGroup ? 'ERR_REMOTE_ADDRESS_USED_GROUP' : 'ERR_REMOTE_ADDRESS_USED_DEVICE').replace('{name}', escHtml(addrOwner.name)));
         if (!isNew) obj.groupId = groupId;
 
         putJSONSync(isNew ? '/addGroup' : '/saveGroup', obj, (err, group) => {
