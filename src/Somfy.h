@@ -394,7 +394,8 @@ class SomfyGroup : public SomfyRemote {
     uint8_t getGroupId() { return groupId; }
     bool save();
     void clear();
-    bool fromJSON(JsonObject &obj);
+    int8_t validateJSON(JsonObject &obj);
+    int8_t fromJSON(JsonObject &obj);
     //bool toJSON(JsonObject &obj);
     void toJSON(JsonResponse &json);
     void toJSONRef(JsonResponse &json);
@@ -540,14 +541,17 @@ class SomfyShadeController {
     int8_t getMaxShadeOrder();
     int8_t getMaxGroupOrder();
     uint32_t getNextRemoteAddress(uint8_t shadeId);
+    // Equipements ET groupes, meme domaine que getNextRemoteAddress(). 255 = pas de ce type.
+    bool isRemoteAddressInUse(uint32_t address, uint8_t exceptShadeId, uint8_t exceptGroupId);
     SomfyShadeController();
     Transceiver transceiver;
     SomfyRoom *addRoom();
     SomfyRoom *addRoom(JsonObject &obj);
     SomfyShade *addShade();
-    SomfyShade *addShade(JsonObject &obj);
+    // Ces surcharges jetaient le retour de fromJSON() : rien n'etait valide a la creation.
+    SomfyShade *addShade(JsonObject &obj, int8_t &err);
     SomfyGroup *addGroup();
-    SomfyGroup *addGroup(JsonObject &obj);
+    SomfyGroup *addGroup(JsonObject &obj, int8_t &err);
     bool deleteRoom(uint8_t roomId);
     bool deleteShade(uint8_t shadeId);
     bool deleteGroup(uint8_t groupId);

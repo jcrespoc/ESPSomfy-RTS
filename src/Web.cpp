@@ -1063,7 +1063,7 @@ void Web::handleShade(WebServer &server) {
         if (obj.containsKey("shadeId")) {
           SomfyShade* shade = somfy.getShadeById(obj["shadeId"]);
           if (shade) {
-            uint8_t err = shade->fromJSON(obj);
+            int8_t err = shade->fromJSON(obj);
             if(err == 0) {
               shade->save();
               JsonResponse resp;
@@ -1125,14 +1125,20 @@ void Web::handleGroup(WebServer &server) {
         if (obj.containsKey("groupId")) {
           SomfyGroup* group = somfy.getGroupById(obj["groupId"]);
           if (group) {
-            group->fromJSON(obj);
-            group->save();
-            JsonResponse resp;
-            resp.beginResponse(&server, g_content, sizeof(g_content));
-            resp.beginObject();
-            group->toJSON(resp);
-            resp.endObject();
-            resp.endResponse();
+            int8_t err = group->fromJSON(obj);
+            if(err == 0) {
+              group->save();
+              JsonResponse resp;
+              resp.beginResponse(&server, g_content, sizeof(g_content));
+              resp.beginObject();
+              group->toJSON(resp);
+              resp.endObject();
+              resp.endResponse();
+            }
+            else {
+              snprintf(g_content, sizeof(g_content), "{\"status\":\"DATA\",\"desc\":\"Data Error.\", \"code\":%d}", err);
+              server.send(500, _encoding_json, g_content);
+            }
           }
           else server.send(500, _encoding_json, F("{\"status\":\"ERROR\",\"desc\":\"Group Id not found.\"}"));
         }
@@ -1638,9 +1644,14 @@ void Web::begin() {
         }
         else {
           Serial.println("Adding shade");
-          shade = somfy.addShade(obj);
+          int8_t derr = 0;
+          shade = somfy.addShade(obj, derr);
           if (!shade) {
-            server.send(500, _encoding_json, F("{\"status\":\"ERROR\",\"desc\":\"Error adding shade.\"}"));
+            if (derr != 0) {
+              snprintf(g_content, sizeof(g_content), "{\"status\":\"DATA\",\"desc\":\"Data Error.\", \"code\":%d}", derr);
+              server.send(500, _encoding_json, g_content);
+            }
+            else server.send(500, _encoding_json, F("{\"status\":\"ERROR\",\"desc\":\"Error adding shade.\"}"));
             return;
           }
         }
@@ -1680,9 +1691,14 @@ void Web::begin() {
         }
         else {
           Serial.println("Adding group");
-          group = somfy.addGroup(obj);
+          int8_t derr = 0;
+          group = somfy.addGroup(obj, derr);
           if (!group) {
-            server.send(500, _encoding_json, F("{\"status\":\"ERROR\",\"desc\":\"Error adding group.\"}"));
+            if (derr != 0) {
+              snprintf(g_content, sizeof(g_content), "{\"status\":\"DATA\",\"desc\":\"Data Error.\", \"code\":%d}", derr);
+              server.send(500, _encoding_json, g_content);
+            }
+            else server.send(500, _encoding_json, F("{\"status\":\"ERROR\",\"desc\":\"Error adding group.\"}"));
             return;
           }
         }
@@ -1841,14 +1857,20 @@ void Web::begin() {
           if (obj.containsKey("groupId")) {
             SomfyGroup* group = somfy.getGroupById(obj["groupId"]);
             if (group) {
-              group->fromJSON(obj);
-              group->save();
-              JsonResponse resp;
-              resp.beginResponse(&server, g_content, sizeof(g_content));
-              resp.beginObject();
-              group->toJSON(resp);
-              resp.endObject();
-              resp.endResponse();
+              int8_t err = group->fromJSON(obj);
+              if(err == 0) {
+                group->save();
+                JsonResponse resp;
+                resp.beginResponse(&server, g_content, sizeof(g_content));
+                resp.beginObject();
+                group->toJSON(resp);
+                resp.endObject();
+                resp.endResponse();
+              }
+              else {
+                snprintf(g_content, sizeof(g_content), "{\"status\":\"DATA\",\"desc\":\"Data Error.\", \"code\":%d}", err);
+                server.send(500, _encoding_json, g_content);
+              }
             }
             else server.send(500, _encoding_json, F("{\"status\":\"ERROR\",\"desc\":\"Group Id not found.\"}"));
           }

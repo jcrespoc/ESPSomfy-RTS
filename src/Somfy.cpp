@@ -3139,6 +3139,12 @@ bool SomfyShade::usesPin(uint8_t pin) {
 }
 int8_t SomfyShade::validateJSON(JsonObject &obj) {
   int8_t ret = 0;
+  // Unicite de l'ID radio : processFrame() diffuse chaque trame a TOUS les equipements et chacun
+  // agit des que l'adresse correspond. Un doublon fait repondre les deux a la meme commande.
+  if(obj.containsKey("remoteAddress")) {
+    uint32_t addr = obj["remoteAddress"].as<uint32_t>();
+    if(somfy.isRemoteAddressInUse(addr, this->getShadeId(), 255)) return -14;
+  }
   shade_types type = this->shadeType;
   if(obj.containsKey("shadeType")) {
     if(obj["shadeType"].is<const char *>()) {
@@ -3170,7 +3176,9 @@ int8_t SomfyShade::validateJSON(JsonObject &obj) {
     }
   }
   if(obj.containsKey("proto")) {
-    radio_proto proto = this->proto;
+    // obj["proto"] et non this->proto, encore a l'ancienne valeur sur la requete qui bascule en
+    // relais : tout le controle ci-dessous etait saute exactement quand il sert.
+    radio_proto proto = static_cast<radio_proto>(obj["proto"].as<uint8_t>());
     if(proto == radio_proto::GP_Relay || proto == radio_proto::GP_Remote) {
       // Check to see if we are using the up and or down
       // GPIOs anywhere else.
@@ -3182,16 +3190,24 @@ int8_t SomfyShade::validateJSON(JsonObject &obj) {
         && proto == radio_proto::GP_Remote)) upPin = myPin = 255;
       else if(type == shade_types::drycontact2) myPin = 255;
       if(proto == radio_proto::GP_Relay) myPin = 255;
-      if(somfy.transceiver.config.enabled) {
+      // Validite INTRINSEQUE, avant toute collision : fromJSON enchaine sur pinMode() avec un
+      // numero venu du reseau, et ecrire sur 6-11 (flash SPI) fait redemarrer l'appareil.
+      if((upPin != 255 && !isUsableOutputPin(upPin)) ||
+        (downPin != 255 && !isUsableOutputPin(downPin)) ||
+        (myPin != 255 && !isUsableOutputPin(myPin)))
+        ret = -13;
+      if(ret == 0 && somfy.transceiver.config.enabled) {
         if((upPin != 255 && somfy.transceiver.usesPin(upPin)) ||
           (downPin != 255 && somfy.transceiver.usesPin(downPin)) ||
           (myPin != 255 && somfy.transceiver.usesPin(myPin)))
           ret = -10;
       }
-      if(settings.connType == conn_types_t::ethernet || settings.connType == conn_types_t::ethernetpref) {
+      if(ret == 0 && (settings.connType == conn_types_t::ethernet || settings.connType == conn_types_t::ethernetpref)) {
+        // downPin et myPin testaient le TRANSCEIVER au lieu de l'Ethernet : un relais pouvait
+        // s'approprier MDC/MDIO/PWR et couper le reseau d'un boitier filaire.
         if((upPin != 255 && settings.Ethernet.usesPin(upPin)) ||
-          (downPin != 255 && somfy.transceiver.usesPin(downPin)) ||
-          (myPin != 255 && somfy.transceiver.usesPin(myPin)))
+          (downPin != 255 && settings.Ethernet.usesPin(downPin)) ||
+          (myPin != 255 && settings.Ethernet.usesPin(myPin)))
           ret = -11;
       }
       if(ret == 0) {
@@ -3456,7 +3472,16 @@ void SomfyRoom::toJSON(JsonResponse &json) {
   json.addElem("sortOrder", this->sortOrder);
 }
 
-bool SomfyGroup::fromJSON(JsonObject &obj) {
+int8_t SomfyGroup::validateJSON(JsonObject &obj) {
+  if(obj.containsKey("remoteAddress")) {
+    uint32_t addr = obj["remoteAddress"].as<uint32_t>();
+    if(somfy.isRemoteAddressInUse(addr, 255, this->getGroupId())) return -14;
+  }
+  return 0;
+}
+int8_t SomfyGroup::fromJSON(JsonObject &obj) {
+  int8_t err = this->validateJSON(obj);
+  if(err != 0) return err;
   if(obj.containsKey("name")) strlcpy(this->name, obj["name"], sizeof(this->name));
   if(obj.containsKey("roomId")) this->roomId = obj["roomId"];
   if(obj.containsKey("remoteAddress")) this->setRemoteAddress(obj["remoteAddress"]);
@@ -3475,7 +3500,7 @@ bool SomfyGroup::fromJSON(JsonObject &obj) {
       linkedShades[i++] = shadeId;
     }
   }
-  return true;
+  return 0;
 }
 void SomfyGroup::toJSON(JsonResponse &json) {
   this->updateFlags();
@@ -3748,10 +3773,31 @@ uint32_t SomfyShadeController::getNextRemoteAddress(uint8_t id) {
   i = 0;
   return address;
 }
-SomfyShade *SomfyShadeController::addShade(JsonObject &obj) {
+bool SomfyShadeController::isRemoteAddressInUse(uint32_t address, uint8_t exceptShadeId, uint8_t exceptGroupId) {
+  if(address == 0) return false; // Sentinelle "pas d'adresse", cf. SomfyShade::clear().
+  for(uint8_t i = 0; i < SOMFY_MAX_SHADES; i++) {
+    if(this->shades[i].getShadeId() == 255) continue;
+    if(this->shades[i].getShadeId() == exceptShadeId) continue;
+    if(this->shades[i].getRemoteAddress() == address) return true;
+  }
+  for(uint8_t i = 0; i < SOMFY_MAX_GROUPS; i++) {
+    if(this->groups[i].getGroupId() == 255) continue;
+    if(this->groups[i].getGroupId() == exceptGroupId) continue;
+    if(this->groups[i].getRemoteAddress() == address) return true;
+  }
+  return false;
+}
+SomfyShade *SomfyShadeController::addShade(JsonObject &obj, int8_t &err) {
+  err = 0;
   SomfyShade *shade = this->addShade();
   if(shade) {
-    shade->fromJSON(obj);
+    err = shade->fromJSON(obj);
+    if(err != 0) {
+      // Le slot avait deja son id : le rendre, sinon un refus laisse un equipement a demi rempli.
+      shade->clear();
+      this->isDirty = true;
+      return nullptr;
+    }
     shade->save();
     shade->emitState("shadeAdded");
   }
@@ -3880,10 +3926,16 @@ SomfyRoom *SomfyShadeController::addRoom() {
   return room;
 }
 
-SomfyGroup *SomfyShadeController::addGroup(JsonObject &obj) {
+SomfyGroup *SomfyShadeController::addGroup(JsonObject &obj, int8_t &err) {
+  err = 0;
   SomfyGroup *group = this->addGroup();
   if(group) {
-    group->fromJSON(obj);
+    err = group->fromJSON(obj);
+    if(err != 0) {
+      group->clear();
+      this->isDirty = true;
+      return nullptr;
+    }
     group->save();
     group->emitState("groupAdded");
   }
