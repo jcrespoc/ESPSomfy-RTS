@@ -3026,6 +3026,9 @@ class Somfy {
     frames = [];
     isScanClosing = false;
     scanObserver = null;
+    calTimer = null;
+    calStartTime = 0;
+    calType = null;
     shadeTypes = [
         { type: 0, name: 'Roller Shade', ico: 'svg-window-shade', lift: true, sun: true, fcmd: true, fpos: true },
         { type: 1, name: 'Blind', ico: 'svg-window-blind', lift: true, tilt: true, sun: true, fcmd: true, fpos: true },
@@ -4737,6 +4740,7 @@ class Somfy {
         }
     }
     showEditShade(bShow) {
+        this.stopCalibrateTime(false);
         let el = get('divLinking');
         if (el) el.remove();
         el = get('divLinkRepeater');
@@ -4823,6 +4827,7 @@ class Somfy {
         return group ? { name: group.name, isGroup: true } : null;
     }
     saveShade() {
+        this.stopCalibrateTime(false);
         const g = get,
         sId = parseInt(g('spanShadeId').innerText, 10),
         obj = ui.fromElement(g('somfyShade')),
@@ -4862,6 +4867,125 @@ class Somfy {
             this.updateShadeList();
             this.openEditShade(shade.shadeId);
         });
+    }
+    showCalHint(type, show) {
+        if (this.calTimer) return;
+        const hint = document.getElementById(type === 'up' ? 'hintCalUpTime' : 'hintCalDownTime');
+        if (!hint) return;
+        if (show) {
+            hint.innerText = tr(type === 'up' ? 'HINT_CAL_UP' : 'HINT_CAL_DOWN');
+            hint.classList.remove('measuring');
+            hint.classList.add('visible');
+        } else {
+            hint.classList.remove('visible', 'measuring');
+        }
+    }
+    stopCalibrateTime(sendStop = false) {
+        if (this.calTimer) {
+            clearInterval(this.calTimer);
+            this.calTimer = null;
+        }
+        const shadeId = parseInt(document.getElementById('spanShadeId')?.innerText, 10);
+        if (sendStop && !isNaN(shadeId) && shadeId < 255) {
+            this.sendCommand(shadeId, 'my');
+        }
+        ['btnCalUpTime', 'btnCalDownTime'].forEach(id => {
+            const btn = document.getElementById(id);
+            if (btn) {
+                btn.innerText = 'CAL';
+                btn.classList.remove('measuring');
+                btn.disabled = false;
+            }
+        });
+        ['hintCalUpTime', 'hintCalDownTime'].forEach(id => {
+            const hint = document.getElementById(id);
+            if (hint) {
+                hint.classList.remove('visible', 'measuring');
+                hint.innerText = '';
+            }
+        });
+        this.calType = null;
+        this.calStartTime = 0;
+    }
+    toggleCalibrateTime(dir) {
+        const shadeId = parseInt(document.getElementById('spanShadeId')?.innerText, 10);
+        if (this.calTimer && this.calType === dir) {
+            const finalMs = Math.round(Date.now() - this.calStartTime);
+            const fld = document.getElementById(dir === 'up' ? 'fldShadeUpTime' : 'fldShadeDownTime');
+
+            if (this.calTimer) {
+                clearInterval(this.calTimer);
+                this.calTimer = null;
+            }
+            if (!isNaN(shadeId) && shadeId < 255) {
+                this.sendCommand(shadeId, 'my');
+            }
+            if (fld) {
+                fld.value = finalMs;
+                fld.dispatchEvent(new Event('input', { bubbles: true }));
+                fld.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            ['btnCalUpTime', 'btnCalDownTime'].forEach(id => {
+                const btn = document.getElementById(id);
+                if (btn) {
+                    btn.innerText = 'CAL';
+                    btn.classList.remove('measuring');
+                    btn.disabled = false;
+                }
+            });
+            ['hintCalUpTime', 'hintCalDownTime'].forEach(id => {
+                const hint = document.getElementById(id);
+                if (hint) {
+                    hint.classList.remove('visible', 'measuring');
+                    hint.innerText = '';
+                }
+            });
+            this.calType = null;
+            this.calStartTime = 0;
+        } else {
+            if (this.calTimer) {
+                this.stopCalibrateTime(false);
+            }
+            this.calType = dir;
+            this.calStartTime = Date.now();
+            const activeBtn = document.getElementById(dir === 'up' ? 'btnCalUpTime' : 'btnCalDownTime');
+            const otherBtn = document.getElementById(dir === 'up' ? 'btnCalDownTime' : 'btnCalUpTime');
+            const fld = document.getElementById(dir === 'up' ? 'fldShadeUpTime' : 'fldShadeDownTime');
+            const activeHint = document.getElementById(dir === 'up' ? 'hintCalUpTime' : 'hintCalDownTime');
+            const otherHint = document.getElementById(dir === 'up' ? 'hintCalDownTime' : 'hintCalUpTime');
+
+            if (activeBtn) {
+                activeBtn.innerText = 'STOP';
+                activeBtn.classList.add('measuring');
+            }
+            if (otherBtn) {
+                otherBtn.disabled = true;
+            }
+            if (otherHint) {
+                otherHint.classList.remove('visible', 'measuring');
+                otherHint.innerText = '';
+            }
+            if (activeHint) {
+                activeHint.innerText = tr('HINT_CAL_STOP');
+                activeHint.classList.add('visible', 'measuring');
+            }
+            if (fld) {
+                fld.value = 0;
+                fld.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            if (!isNaN(shadeId) && shadeId < 255) {
+                this.sendCommand(shadeId, dir === 'up' ? 'up' : 'down');
+            }
+            this.calTimer = setInterval(() => {
+                const elapsed = Math.round(Date.now() - this.calStartTime);
+                if (fld) {
+                    fld.value = elapsed;
+                }
+                if (elapsed >= 180000) {
+                    this.toggleCalibrateTime(dir);
+                }
+            }, 100);
+        }
     }
     saveGroup() {
         const g = get,
