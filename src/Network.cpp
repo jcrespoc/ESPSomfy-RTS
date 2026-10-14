@@ -114,7 +114,7 @@ void Network::loop() {
   }
   if(!this->connecting() && !settings.WIFI.hidden) {
     if((this->softAPOpened && WiFi.softAPgetStationNum() == 0) ||
-      (!this->connected() && ctype == conn_types_t::wifi)) {
+      (!this->softAPOpened && !this->connected() && ctype == conn_types_t::wifi)) {
       // If the Soft AP is opened and there are no clients connected then we need to scan for an AP.  If
       // our target exists we will exit out of the Soft AP and start that connection.  We are also
       // going to continuously scan when there is no connection and our preferred connection is wifi.
