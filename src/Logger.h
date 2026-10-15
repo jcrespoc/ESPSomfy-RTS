@@ -1,10 +1,6 @@
 #ifndef _LOGGER_H
 #define _LOGGER_H
 
-#ifdef ENABLE_TLOG
-#include <TLog.h>
-#endif
-
 #define LOG_LEVEL_ALWAYS     0
 #define LOG_LEVEL_EMERGENCY  1
 #define LOG_LEVEL_ALERT      2
