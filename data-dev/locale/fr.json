@@ -277,6 +277,7 @@
     "ID": "ID: ",
     "GROUP_LINKED_S": "Équipements associés au groupe",
     "GROUP_LINK_DESC": "Lance la procédure d'appairage d'un équipement à ce groupe",
+    "GROUP_MEMBERS": "Membres:",
 "PAGE": "VIRTUAL REMOTE",
     "VR_SELECT_MOTOR_GROUP": "Sélectionner un moteur ou un groupe",
     "VR_MY": "my",

@@ -277,6 +277,7 @@
     "ID": "ID: ",
     "GROUP_LINKED_S": "Devices linked to the group",
     "GROUP_LINK_DESC": "Starts the pairing process of a device to this group",
+    "GROUP_MEMBERS": "Members:",
 "PAGE": "VIRTUAL REMOTE",
     "VR_SELECT_MOTOR_GROUP": "Select a motor or group",
     "VR_MY": "my",

@@ -3708,7 +3708,7 @@ class Somfy {
             pill.classList.toggle('active', pId === roomId);
         });
 
-        const ctls = document.querySelectorAll('.somfyShadeCtl');
+        const ctls = document.querySelectorAll('.somfyShadeCtl, .somfyGroupCtl');
         ctls.forEach(x => {
             const rId = parseInt(x.getAttribute('data-roomid'), 10);
             x.style.display = (roomId === 0 || rId === roomId) ? '' : 'none';
@@ -4129,7 +4129,7 @@ class Somfy {
                 <span class="groupctl-name">${group.name}</span>
                 <div class="groupctl-shades">`;
                 if (typeof group.linkedShades !== 'undefined') {
-                    divCtl += `<label>Members:</label><span>${group.linkedShades.length}</span>`;
+                    divCtl += `<label>${tr("GROUP_MEMBERS")}</label><span>${group.linkedShades.length}</span>`;
                 }
                 divCtl += `</div></div>
                 <div class="groupctl-buttons">

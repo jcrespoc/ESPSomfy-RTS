@@ -277,6 +277,7 @@
     "ID": "ID: ",
     "GROUP_LINKED_S": "Dispositivos vinculados al grupo",
     "GROUP_LINK_DESC": "Inicia el proceso de emparejamiento de un dispositivo con este grupo",
+    "GROUP_MEMBERS": "Miembros:",
 "PAGE": "VIRTUAL REMOTE",
     "VR_SELECT_MOTOR_GROUP": "Selecciona un motor o grupo",
     "VR_MY": "my",
