@@ -5,7 +5,11 @@
 
 // Direct reference to the underlying hardware serial port (inline function for C++11/C++14 compatibility)
 inline HardwareSerial& realSerial() {
+    #if ARDUINO_USB_CDC_ON_BOOT==1
+    return ::Serial0;
+    #else
     return ::Serial;
+    #endif
 }
 #define RealHardwareSerial realSerial()
 

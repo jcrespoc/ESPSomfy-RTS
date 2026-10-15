@@ -12,7 +12,6 @@ struct WsLogMsg {
 };
 
 WsLogStream::WsLogStream() {
-    _mutex = xSemaphoreCreateMutex();
     _queue = xQueueCreate(20, sizeof(WsLogMsg));
 }
 
@@ -49,46 +48,39 @@ size_t WsLogStream::write(const uint8_t *buffer, size_t size) {
         return size;
     }
 
-    if (_mutex && xSemaphoreTake(_mutex, pdMS_TO_TICKS(50)) == pdTRUE) {
-        bool endsWithNewline = (buffer[size - 1] == '\n');
-        size_t contentLen = size;
-        if (endsWithNewline) {
+    
+    bool endsWithNewline = (buffer[size - 1] == '\n');
+    size_t contentLen = size;
+    if (endsWithNewline) {
+        contentLen--;
+        if (contentLen > 0 && buffer[contentLen - 1] == '\r') {
             contentLen--;
-            if (contentLen > 0 && buffer[contentLen - 1] == '\r') {
-                contentLen--;
-            }
         }
+    }
 
-        while (contentLen > 0) {
-            size_t available = (BUFFER_SIZE - 1) - _index;
-            size_t toCopy = (contentLen < available) ? contentLen : available;
-            memcpy(_buffer + _index, buffer, toCopy);
-            _index += toCopy;
-            buffer += toCopy;
-            contentLen -= toCopy;
+    while (contentLen > 0) {
+        size_t available = (BUFFER_SIZE - 1) - _index;
+        size_t toCopy = (contentLen < available) ? contentLen : available;
+        memcpy(_buffer + _index, buffer, toCopy);
+        _index += toCopy;
+        buffer += toCopy;
+        contentLen -= toCopy;
 
-            if (_index >= BUFFER_SIZE - 1) {
-                enqueueLine();
-            }
-        }
-
-        if (endsWithNewline) {
+        if (_index >= BUFFER_SIZE - 1) {
             enqueueLine();
         }
+    }
 
-        xSemaphoreGive(_mutex);
-        return size;
+    if (endsWithNewline) {
+        enqueueLine();
     }
 
     return size;
 }
 
 void WsLogStream::flush() {
-    if (_mutex && xSemaphoreTake(_mutex, pdMS_TO_TICKS(50)) == pdTRUE) {
-        if (_index > 0) {
-            enqueueLine();
-        }
-        xSemaphoreGive(_mutex);
+    if (_index > 0) {
+        enqueueLine();
     }
 }
 
