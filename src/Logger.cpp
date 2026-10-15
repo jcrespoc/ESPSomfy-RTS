@@ -11,16 +11,6 @@
 #include "esp_core_dump.h"
 #include "esp_partition.h"
 
-#ifdef ENABLE_TLOG
-#include <TLog.h>
-#include <MqttlogStream.h>
-
-WiFiClient client;
-MqttStream mqttStream = MqttStream(client);
-char topic[128] = "log/foo";
-#endif
-
-
 #ifdef ELOG_SYSLOG_ENABLE
   #ifndef ELOG_SYSLOG_HOST
     #error "ELOG_SYSLOG_HOST is not defined"
@@ -148,15 +138,5 @@ void LoggerInit() {
   #ifdef ELOG_SPIFFS_ENABLE
   Logger.configureSpiffs(2);
   Logger.registerSpiffs(FILELOG, ELOG_SPIFFS_LEVEL, "espsomfy", ELOG_FLAG_NO_SERVICE, 10000);
-  #endif
-
-  #ifdef ENABLE_TLOG
-  //if (settings.MQTT.hostname != NULL && strlen(settings.MQTT.hostname) > 0) {
-    mqttStream.setServer("192.168.8.30");
-    mqttStream.setTopic(topic);
-    Log.addPrintStream(std::make_shared<MqttStream>(mqttStream));
-    Log.disableSerial(true);
-    Log.begin();
-  //}
   #endif
 }

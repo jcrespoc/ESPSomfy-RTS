@@ -8,6 +8,7 @@
 #include "Network.h"
 #include "GitOTA.h"
 #include "Web.h"
+#include "WsLogStream.h"
 
 extern ConfigSettings settings;
 extern Network net;
@@ -177,6 +178,7 @@ void SocketEmitter::loop() {
   }
   this->initClients();
   sockServer.loop();  
+  wsLogStream.loop();
 }
 JsonSockEvent *SocketEmitter::beginEmit(const char *evt) {
   this->json.beginEvent(&sockServer, evt, g_response, sizeof(g_response));
@@ -274,12 +276,12 @@ void SocketEmitter::wsEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t
             if(strncmp((char *)payload, "join:", 5) == 0) {
               // In this instance the client wants to join a room.  Let's do some
               // work to get the ordinal of the room that the client wants to join.
-              uint8_t roomNum = atoi((char *)&payload[5]);
+              uint8_t roomNum = (strcmp((char *)&payload[5], "log") == 0) ? ROOM_EMIT_LOG : atoi((char *)&payload[5]);
               Serial.printf("Client %u joining room %u\n", num, roomNum);
               if(roomNum < SOCK_MAX_ROOMS) sockEmit.rooms[roomNum].join(num);
             }
             else if(strncmp((char *)payload, "leave:", 6) == 0) {
-              uint8_t roomNum = atoi((char *)&payload[6]);
+              uint8_t roomNum = (strcmp((char *)&payload[6], "log") == 0) ? ROOM_EMIT_LOG : atoi((char *)&payload[6]);
               Serial.printf("Client %u leaving room %u\n", num, roomNum);
               if(roomNum < SOCK_MAX_ROOMS) sockEmit.rooms[roomNum].leave(num);
             }

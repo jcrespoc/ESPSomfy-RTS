@@ -3,8 +3,9 @@
 #ifndef sockets_h
 #define sockets_h
 
-#define SOCK_MAX_ROOMS 1
+#define SOCK_MAX_ROOMS 2
 #define ROOM_EMIT_FRAME 0
+#define ROOM_EMIT_LOG   1
 
 struct room_t {
   uint8_t clients[5] = {255, 255, 255, 255, 255};
@@ -40,4 +41,7 @@ bool sockClientAuthorized(uint8_t num);
 // Coupe toutes les sessions socket en cours. A appeler quand la securite change : le jeton depend du
 // PIN/mot de passe, donc les clients deja connectes tiennent une cle devenue fausse.
 void sockRevokeAllClients();
+
+extern WebSocketsServer sockServer;
+extern SocketEmitter sockEmit;
 #endif
