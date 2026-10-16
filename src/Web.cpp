@@ -1395,6 +1395,38 @@ void Web::handleReboot(WebServer &server) {
     server.send(201, _encoding_json, "{\"status\":\"ERROR\",\"desc\":\"Invalid HTTP Method: \"}");
   }
 }
+// VALIDATION AVANT APPLICATION. transceiver_config_t::fromJSON n'a aucun canal de retour
+// d'erreur : il affectait la broche telle qu'elle arrivait, et /saveRadio repondait 200. Une
+// broche impossible etait donc acceptee en silence, puis gravee en NVS par le save() qui suit --
+// l'ecran affichait un brochage que la carte n'a jamais pris. On tranche donc ici, la ou l'on peut
+// encore repondre, et rien n'est applique tant que les six broches ne tiennent pas.
+// La collision entre deux lignes reste controlee par l'interface (ERR_GPIO_PIN_DUPLICATED) : ce
+// qui se joue ici est la validite INTRINSEQUE, celle qu'aucun ecran ne peut rattraper.
+static bool validateRadioPins(JsonObject& obj, String &err) {
+  if(!obj.containsKey("config")) return true;
+  JsonObject cfg = obj["config"];
+  const transceiver_config_t &cur = somfy.transceiver.config;
+  struct pin_slot_t { const char *key; const char *label; uint8_t current; radio_pin_role role; };
+  const pin_slot_t slots[6] = {
+    {"SCKPin",  "SCK",  cur.SCKPin,  radio_pin_role::spi_out},
+    {"MOSIPin", "MOSI", cur.MOSIPin, radio_pin_role::spi_out},
+    {"CSNPin",  "CSN",  cur.CSNPin,  radio_pin_role::spi_out},
+    {"MISOPin", "MISO", cur.MISOPin, radio_pin_role::spi_in},
+    {"RXPin",   "RX",   cur.RXPin,   radio_pin_role::spi_in},
+    {"TXPin",   "TX",   cur.TXPin,   radio_pin_role::tx_bitbang}
+  };
+  for(uint8_t i = 0; i < 6; i++) {
+    // Une cle absente laisse la valeur courante : on valide l'etat RESULTANT, pas le seul delta.
+    int v = cfg.containsKey(slots[i].key) ? cfg[slots[i].key].as<int>() : (int)slots[i].current;
+    const char *code = radioPinFault(v, slots[i].role);
+    if(!code) continue;
+    err = String("{\"status\":\"ERROR\",\"code\":\"") + code + "\",\"pin\":" + v +
+          ",\"line\":\"" + slots[i].label + "\",\"desc\":\"GPIO" + v + " (" + slots[i].label +
+          ") is " + radioPinFaultText(code) + ".\"}";
+    return false;
+  }
+  return true;
+}
 void Web::begin() {
   Serial.println("Creating Web MicroServices...");
   server.enableCORS(true);
@@ -2615,6 +2647,8 @@ void Web::begin() {
 
     if (server.method() == HTTP_POST || server.method() == HTTP_PUT) {
       JsonObject obj = doc.as<JsonObject>();
+      String err;
+      if(!validateRadioPins(obj, err)) return server.send(400, _encoding_json, err);
       somfy.transceiver.fromJSON(obj);
       somfy.transceiver.save();
 

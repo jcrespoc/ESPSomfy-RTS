@@ -421,6 +421,22 @@ class SomfyGroup : public SomfyRemote {
     bool publish(const char *topic, uint16_t val, bool retain = false);
     bool publish(const char *topic, bool val, bool retain = false);
 };
+// Le ROLE d'une broche radio commande ce qu'on peut lui demander, et c'est pourquoi le controle
+// n'est pas unique : un seul test bati sur la sortie refuserait les RX d'usine de cinq cartes
+// predefinies, tout en laissant passer un TX impossible.
+//   - TX est bit-bangee par `1 << TXPin` dans GPIO_OUT_W1TS_REG (cf. Transceiver::sendFrame) : ce
+//     registre n'adresse que GPIO 0-31. Au-dela, le decalage est un comportement indefini -- en
+//     pratique pris modulo 32 -- donc la trame part sur une AUTRE broche, sans un mot. Elle doit
+//     etre une sortie ET tenir dans 0-31 ;
+//   - SCK, MOSI et CSN passent par ELECHOUSE_cc1101.setSpiPin() : sorties, sans aucun plafond ;
+//   - MISO et RX ne sont que LUES (setSpiPin pour l'une, pinMode(INPUT) + attachInterrupt pour
+//     l'autre) : les broches input-only 34-39 leur conviennent.
+enum class radio_pin_role : uint8_t { tx_bitbang, spi_out, spi_in };
+// Renvoie nullptr si la broche convient au role, sinon un CODE stable que l'interface pourra
+// traduire. radioPinFaultText() en donne la phrase anglaise, qui part dans le champ `desc` de la
+// reponse 400 et sert de repli lisible tant que la cle de dictionnaire n'existe pas.
+const char *radioPinFault(int pin, radio_pin_role role);
+const char *radioPinFaultText(const char *code);
 struct transceiver_config_t {
     bool printBuffer = false;
     bool enabled = false;

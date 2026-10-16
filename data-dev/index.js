@@ -860,6 +860,23 @@ function bindNavigation() {
         });
     });
 }
+// Famille de puce, normalisee depuis data-chipmodel. Le firmware annonce "s3_8mb" ou "s3_4mb" :
+// ce suffixe de taille de flash est porteur, il route l'OTA vers le bon binaire (setFirmwareFile()
+// dans GitOTA.cpp). Une comparaison stricte avec les cles de pinMaps ne pouvait donc JAMAIS
+// matcher sur un S3 -- la table generique 39 broches etait servie a une puce qui en a 48, et le
+// preset "Defaut" distribuait le brochage ESP32 alors que le firmware applique bien, lui, les
+// defauts S3 (transceiver_config_t::load()). L'ecran annoncait des broches que la carte
+// n'utilisait pas, et la premiere sauvegarde les gravait en NVS.
+// UN SEUL point de normalisation : tout site qui choisit une table de broches ou un preset passe
+// par ici. Une seule exception, et elle est voulue : le filtre des versions dans updateGithub()
+// compare au hwVersions des assets de la release et a besoin de la chaine BRUTE, suffixe compris.
+function chipFamily() {
+    const cm = (get('divContainer').getAttribute('data-chipmodel') || "").toLowerCase().trim();
+    if (cm.includes("s3")) return "s3";
+    if (cm.includes("c3")) return "c3";
+    if (cm.includes("s2")) return "s2";
+    return "esp32";
+}
 function stepDeviceGpio(pinKey, direction, prefix, boardSelectId, isManualCallback, pinMaps) {
     const selBoard = get(boardSelectId);
     if (!selBoard) return;
@@ -875,8 +892,7 @@ function stepDeviceGpio(pinKey, direction, prefix, boardSelectId, isManualCallba
         if (isNaN(current)) current = 0;
 
         let next = current + direction;
-        const cm = (get('divContainer').getAttribute('data-chipmodel') || "").toLowerCase();
-        const pm = pinMaps.find(x => x.name === cm) || { maxPins: 39 };
+        const pm = pinMaps.find(x => x.name === chipFamily()) || { maxPins: 39 };
 
         if (next < 0 || next > pm.maxPins) return;
 
@@ -3097,13 +3113,7 @@ class Somfy {
     loadRadioBoardTypes(sel) {
         while (sel.firstChild) sel.removeChild(sel.firstChild);
 
-        let rawCm = get('divContainer').getAttribute('data-chipmodel') || "";
-        let cm = rawCm.toLowerCase().trim();
-
-        if (cm.includes("s3")) cm = "s3";
-        else if (cm.includes("c3")) cm = "c3";
-        else if (cm.includes("s2")) cm = "s2";
-        else cm = "esp32";
+        const cm = chipFamily();
 
         this.radioBoardTypes.forEach(t => {
             if (t.chips && !t.chips.includes(cm)) {
@@ -3120,7 +3130,7 @@ class Somfy {
     }
     onRadioBoardTypeChanged(sel, isInit = false) {
         const val = parseInt(sel.value, 10),
-        cm = (get('divContainer').getAttribute('data-chipmodel') || "").toLowerCase(),
+        cm = chipFamily(),
         divS = get('divGPIOSummary'),
         divG = get('divShowGpio'),
         pk = ['SCKPin', 'CSNPin', 'MOSIPin', 'MISOPin', 'TXPin', 'RXPin'],
@@ -3283,8 +3293,7 @@ class Somfy {
             }
 
             if (valid) {
-                const cm = (get('divContainer').getAttribute('data-chipmodel') || "").toLowerCase(),
-                pm = this.pinMaps.find(x => x.name === cm) || { maxPins: 39 };
+                const pm = this.pinMaps.find(x => x.name === chipFamily()) || { maxPins: 39 };
 
                 try {
                     for (const k of pk) {
@@ -3344,7 +3353,7 @@ class Somfy {
             }
     }
     pinMaps = [
-        { name: '', maxPins: 39, inputs: [0, 1, 6, 7, 8, 9, 10, 11, 37, 38], outputs: [3, 6, 7, 8, 9, 10, 11, 34, 35, 36, 37, 38, 39] },
+        { name: 'esp32', maxPins: 39, inputs: [0, 1, 6, 7, 8, 9, 10, 11, 37, 38], outputs: [3, 6, 7, 8, 9, 10, 11, 34, 35, 36, 37, 38, 39] },
         { name: 's2', maxPins: 46, inputs: [0, 19, 20, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 45], outputs: [0, 19, 20, 26, 27, 28, 29, 30, 31, 32, 45, 46]},
         { name: 's3', maxPins: 48, inputs: [19, 20, 22, 23, 24, 25, 27, 28, 29, 30, 31, 32], outputs: [19, 20, 22, 23, 24, 25, 27, 28, 29, 30, 31, 32] },
         { name: 'c3', maxPins: 21, inputs: [11, 12, 13, 14, 15, 16, 17, 18, 19, 20], outputs: [11, 12, 13, 14, 15, 16, 17, 21] }
@@ -3354,11 +3363,9 @@ class Somfy {
         let currentVal = (typeof opt !== 'undefined') ? opt : parseInt(sel.value, 10);
         while (sel.firstChild) sel.removeChild(sel.firstChild);
 
-        let cm = get('divContainer').getAttribute('data-chipmodel');
-        let pm = this.pinMaps.find(x => x.name === cm);
-        if (!pm) {
-            pm = { name: '', maxPins: 39, inputs: [0, 1, 6, 7, 8, 9, 10, 11, 37, 38], outputs: [3, 6, 7, 8, 9, 10, 11, 34, 35, 36, 37, 38, 39] };
-        }
+        // chipFamily() ne renvoie que des cles presentes dans la table : le || n'est qu'une
+        // ceinture, et il retient l'entree generique pour que pm.inputs/pm.outputs existent.
+        const pm = this.pinMaps.find(x => x.name === chipFamily()) || this.pinMaps[0];
 
         for (let i = 0; i <= pm.maxPins; i++) {
 
@@ -6152,6 +6159,10 @@ class Firmware {
         getJSONSync('/getReleases', (err, rel) => {
             if (err) return ui.serviceError(err);
             const div = document.createElement('div'), isMob = this.isMobile();
+            // Chaine BRUTE, et surtout PAS chipFamily() : on compare au hwVersions des assets de
+            // la release, qui vaut litteralement "s3_8mb" ou "s3_4mb" (cf. GitRelease::setAssetProperty
+            // dans GitOTA.cpp). Normaliser ici en "s3" ne matcherait plus rien et viderait la
+            // liste des versions proposees sur tous les S3, donc couperait l'OTA depuis l'ecran.
             const chip = (get('divContainer').getAttribute('data-chipmodel') || "").toLowerCase();
             div.id = 'divGitInstall';
             div.className = 'inst-overlay';
