@@ -253,7 +253,7 @@ void Network::setConnected(conn_types_t connType) {
 
   esp_task_wdt_reset();
 
-  // Affichage minimaliste de la réussite
+  // Minimal success output
   if(this->connectAttempts == 1) {
     bool isWifi = (this->connType == conn_types_t::wifi);
     Serial.print(isWifi ? F("WiFi: ") : F("ETH: "));

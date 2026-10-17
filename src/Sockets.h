@@ -37,7 +37,7 @@ class SocketEmitter {
 };
 // Vrai si l'emplacement `num` a passe la poignee de main authentifiee (cf. Sockets.cpp).
 bool sockClientAuthorized(uint8_t num);
-// Coupe toutes les sessions socket en cours. A appeler quand la securite change : le jeton depend du
-// PIN/mot de passe, donc les clients deja connectes tiennent une cle devenue fausse.
+// Cuts every socket session in progress. To be called when security changes: the token depends on
+// the PIN/password, so clients already connected hold a key that has become wrong.
 void sockRevokeAllClients();
 #endif

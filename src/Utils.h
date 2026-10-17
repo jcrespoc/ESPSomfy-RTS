@@ -9,16 +9,27 @@
 
 
 [[maybe_unused]] static void SETCHARPROP(char *prop, const char *value, size_t size) {strncpy(prop, value, size); prop[size - 1] = '\0';}
-// Le SDK tient le flash SPI interne (6-11) et la PSRAM des WROVER (16/17) pour des sorties
-// valides, alors qu'y ecrire fait planter l'appareil. Disponibilite : affaire des usesPin().
+// The SDK treats the internal SPI flash (6-11, and 26-32 on S3) and the PSRAM of WROVER modules
+// (16/17) as valid pins, although writing to them crashes the device. Availability: usesPin().
+[[maybe_unused]] static bool isDestructivePin(int pin) {
+#if CONFIG_IDF_TARGET_ESP32
+  if(pin >= 6 && pin <= 11) return true;
+  if(psramFound() && (pin == 16 || pin == 17)) return true;
+#elif CONFIG_IDF_TARGET_ESP32S3
+  if(pin >= 26 && pin <= 32) return true;
+#endif
+  return false;
+}
 [[maybe_unused]] static bool isUsableOutputPin(int pin) {
   if(pin < 0 || pin > 48) return false;
   if(!GPIO_IS_VALID_OUTPUT_GPIO(pin)) return false;
-#if CONFIG_IDF_TARGET_ESP32
-  if(pin >= 6 && pin <= 11) return false;
-  if(psramFound() && (pin == 16 || pin == 17)) return false;
-#endif
-  return true;
+  return !isDestructivePin(pin);
+}
+// For a pin that is only READ: 34-39 are input-only on the plain ESP32.
+[[maybe_unused]] static bool isUsableInputPin(int pin) {
+  if(pin < 0 || pin > 48) return false;
+  if(!GPIO_IS_VALID_GPIO(pin)) return false;
+  return !isDestructivePin(pin);
 }
 /*
 namespace util { 

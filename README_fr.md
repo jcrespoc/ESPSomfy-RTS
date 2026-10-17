@@ -9,6 +9,8 @@
     Contrôlez et gérez facilement vos volets roulants, portails, portes de garage ou tout autre appareil utilisant le protocole RTS 433 MHz.
     <br />
     <br />
+    <a href="https://github.com/xkain/ESPSomfy-RTS/blob/main/README.md"><strong>Full README in English 🇬🇧 »</strong></a>
+    <br />
     <a href="https://github.com/xkain/ESPSomfy-RTS/wiki"><strong>Explorer la documentation »</strong></a>
     <br />
     <a href="https://github.com/xkain/ESPSomfy-RTS/issues">Signaler un bug</a>
@@ -20,22 +22,44 @@
 
 
 <p align="center">
-  <img src="images/exemple.png" alt="ESPSomfy-RTS Screen Shot" width="100%">
+  <a href="images/exemple.png"><img src="images/exemple.png" alt="L'interface d'ESPSomfy-RTS" width="100%"></a>
 </p>
 
 
 ## À propos du projet
 
-Ce projet fait office de contrôleur complet pour les stores et volets Somfy RTS, capable de gérer jusqu'à **30 équipements individuels**, **14 groupes** et **14 pièces**.
+**ESPSomfy-RTS** transforme un ESP32 et un module radio 433 MHz en passerelle pour vos équipements au protocole **Somfy RTS** : volets roulants, stores, portails, portes de garage. Les autres marques du groupe Somfy — SIMU, Teleco, BFT — en vendent également : leurs modèles **RTS** se pilotent de la même façon. Vos télécommandes d'origine continuent de fonctionner — l'appareil les écoute pour garder l'affichage synchronisé.
+
+Ce dépôt est un **fork** du projet de [rstrouse](https://github.com/rstrouse/ESPSomfy-RTS). Les fondations radio sont les siennes ; ce qui change est au-dessus.
+
+| | |
+| --- | --- |
+| **Capacité** | 30 équipements, 14 groupes, 14 pièces, 7 télécommandes liées par équipement |
+| **Protocoles** | RTS, RTW, RTV/L, et moteurs filaires par module relais |
+| **Langues** | français, anglais, allemand, espagnol |
+| **Intégrations** | Home Assistant, MQTT avec auto-découverte, API REST |
+| **Mises à jour** | depuis l'interface, téléchargées directement depuis GitHub |
+
+#### Ce que ce fork apporte
+
+* **Une interface repensée et réellement responsive.** Le téléphone n'est plus un écran de dépannage : c'est un poste de pilotage.
+* **Multilingue**, interface traduite dans son intégralité.
+* **Les assistants radio déroulés pas à pas.** Appairer un moteur, lier une télécommande, associer un équipement à un groupe : chaque étape est numérotée, expliquée, et ne demande qu'une seule chose à la fois — avec un **mode expert** qui regroupe tout sur une page une fois le geste acquis. Un assistant à part préconfigure les boîtiers prêts à l'emploi.
+* **Un sélecteur de carte radio.** Les GPIO de votre module se choisissent dans une liste, qui couvre les ESP32 les plus courants.
+* **Une sécurité durcie.** Les secrets ne quittent plus l'appareil, les tentatives répétées se heurtent à un garde-fou.
+* **Une réinitialisation à deux niveaux** : le réseau et la sécurité, ou l'usine complète.
+* **Un graphique en temps réel sur le balayage de fréquence**, pour voir la télécommande se détacher du bruit pendant la recherche, au lieu de n'en lire que le résultat.
+
+Et bien plus encore...
 
 #### Protocoles pris en charge
-* **433MHz RTx :** Prise en charge complète des protocoles **RTS, RTW, RTV/L** et **433,92MHz**.
-* **Contraintes de fréquence :** Vous pouvez mélanger les protocoles tant qu'ils se situent dans la même plage de fréquence de base. 
-  > **Note :** Vous ne pouvez pas faire fonctionner simultanément des moteurs 433,92MHz et 433,42MHz sur le même émetteur-récepteur radio.
-* **IO Homecontrol :** Non pris en charge nativement. Cependant, la compatibilité peut être obtenue via le protocole **IO Remote** en s'interfaçant avec une télécommande désossée. 
+* **433 MHz RTx :** prise en charge complète des protocoles **RTS, RTW, RTV/L** et **433,92 MHz**.
+* **Contraintes de fréquence :** vous pouvez mélanger les protocoles tant qu'ils restent dans la même plage de fréquence de base.
+  > **Note :** vous ne pouvez pas faire fonctionner simultanément des moteurs 433,92 MHz et 433,42 MHz sur le même émetteur-récepteur radio.
+* **IO Homecontrol :** non pris en charge nativement. La compatibilité peut toutefois être obtenue via le protocole **IO Remote**, en s'interfaçant avec une télécommande désossée.
 
-#### Moteurs filaires (Relais)
-Pour les personnes disposant de moteurs "nus" (sans radio intégrée), ce projet inclut la prise en charge des **configurations de modules relais**. Une fois configurés, ces moteurs peuvent être contrôlés via l'interface exactement comme des appareils natifs RTS ou RTW.
+#### Moteurs filaires (relais)
+Pour les moteurs « nus », sans radio intégrée, le projet prend en charge les **configurations de modules relais**. Une fois configurés, ces moteurs se pilotent depuis l'interface exactement comme des appareils RTS ou RTW.
 
 <br />
 
@@ -47,47 +71,56 @@ Pour les personnes disposant de moteurs "nus" (sans radio intégrée), ce projet
 
 Tout en conservant les **fondations ultra-solides** du projet original, j'ai entièrement repensé l'expérience utilisateur pour la rendre **véritablement responsive** : l'interface est tout aussi agréable à utiliser sur mobile et tablette que sur PC, et la navigation est enfin limpide pour les non-anglophones.
 
-Ce projet vise à rendre la gestion de vos appareils RTS 433 MHZ aussi belle que fonctionnelle.
+Ce projet vise à rendre la gestion de vos appareils RTS 433 MHz aussi belle que fonctionnelle.
 
 <br />
 
 ## Migration & Mises à jour
 
-Si vous migrez depuis **rstrouse/ESPSomfy-RTS** ou si vous mettez à niveau une ancienne version de ce fork, veuillez lire ce qui suit :
-
-#### De rstrouse à ce Fork (v2.5.0+)
+#### Depuis le firmware de rstrouse
 
 > [!WARNING]
-> **Ne passez pas de la v2.4.6/v2.4.7 à ce fork par la page Firmware de l'interface
-> rstrouse.** Cette voie n'est pas prise en charge. Faites une installation complète
-> (« onboard »), qui réécrit l'application **et** le système de fichiers.
+> **Ne passez pas de la v2.4.6/v2.4.7 à ce fork par la page Firmware de l'interface rstrouse.** Cette voie n'est pas prise en charge : elle ne remplace qu'une moitié du système et laisse une interface et un firmware qui ne se comprennent pas. Faites une installation complète par USB avec l'image « onboard » — voir le **[Guide d'installation](https://github.com/xkain/ESPSomfy-RTS/wiki/Guide-d'installation)**.
 
-* **Compatibilité des données :** Vous pouvez restaurer un fichier `.backup` du projet original. Vos volets, groupes et adresses de télécommandes seront migrés avec succès.
-* **⚠️ Paramètres Radio (Action requise) :** En raison du nouveau sélecteur de GPIO dans la v2.5.0, les assignations des broches radio ne sont **pas** restaurées automatiquement à partir des anciens fichiers de sauvegarde. 
-* **Message d'avertissement :** Vous verrez une alerte de compatibilité pendant le processus de restauration. Après l'importation, vous **devez** vérifier et réassigner manuellement vos broches GPIO dans l'onglet **Radio**.
+* **Vos données suivent.** Un fichier `.backup` du projet d'origine se restaure ici : équipements, groupes et adresses de télécommande sont reprises, et vos moteurs n'ont pas à être réappairés.
+* **Sauf les GPIO radio.** Le sélecteur de carte introduit par ce fork ne peut pas les deviner depuis un fichier plus ancien : il faut les réassigner à la main dans l'onglet **Radio**.
+* **Une alerte de compatibilité s'affiche** pendant la restauration. Elle est attendue et ne signale pas un échec.
 
-#### Mise à niveau de la v2.4.8 à la v2.5.0
-* **Mise à jour directe :** Vos paramètres existants sont automatiquement migrés et préservés pendant le processus de mise à jour. 
-* **⚠️ Note sur la sauvegarde automatique :** Le fichier de sauvegarde créé par le système *juste avant* la mise à jour est toujours à l'ancien format. 
-* **Restauration après mise à jour :** Si jamais vous devez restaurer cette sauvegarde spécifique pré-mise à jour sur la v2.5.0+, vous déclencherez l'alerte "Compatibilité incomplète" et devrez réassigner vos GPIO Radio manuellement.
+#### Depuis une version antérieure de ce fork
+
+* **La mise à jour depuis l'interface conserve votre configuration**, sans manipulation de votre part.
+* **La sauvegarde automatique créée juste avant la mise à jour reste à l'ancien format.** Si vous rechargez ce fichier-là plus tard, vous retomberez sur l'alerte de compatibilité et sur la réassignation des GPIO.
 
 > [!TIP]
-> Après une mise à jour réussie vers la v2.5.0, nous vous recommandons de créer immédiatement une **nouvelle sauvegarde**. Ce nouveau fichier inclura la cartographie GPIO mise à jour et ne déclenchera plus aucun avertissement à l'avenir.
+> Après une mise à jour réussie, créez immédiatement une **nouvelle sauvegarde**. Elle contient la cartographie GPIO à jour et ne déclenchera plus aucun avertissement.
 
 ## Home Assistant
 
-Ce projet reste **compatible** avec l'intégration officielle `ESPSomfy-RTS-HA` de rstrouse. Si vous l'utilisez déjà, vos entités, appareils et automatismes continueront de fonctionner normalement (veillez à ce que vos entités aient le même nom (id) bien évidement). Seul détail, vous n'aurez pas les notes de version du firmware affichées lors des mises à jour depuis Home Assistant (voir la **[documentation](https://github.com/xkain/ESPSomfy-RTS/wiki/Int%C3%A9grations#home-assistant)** pour tous les détails).
+Deux intégrations fonctionnent avec ce firmware.
 
-Pour tirer le meilleur parti de ce firmware, utilisez **[ESPSomfy-RTS Enhanced](https://github.com/xkain/ESPSomfy-RTS-enhanced)**, la version dédiée et améliorée de l'intégration :
+#### ESPSomfy-RTS Enhanced — recommandée
 
-* **Installation :** Disponible directement dans le store de **HACS** (*Home Assistant Community Store*) ou en cliquant sur le bouton ci-dessous :
+**[ESPSomfy-RTS Enhanced](https://github.com/xkain/ESPSomfy-RTS-enhanced)** est la version dédiée à ce fork : elle sait s'authentifier auprès d'un appareil protégé par un code PIN, affiche les notes de version du firmware au moment de la mise à jour, et expose les capteurs propres à cette lignée.
+
+* **Installation :** directement dans le store **HACS** (*Home Assistant Community Store*), ou en cliquant sur le bouton ci-dessous.
 
 <a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=xkain&repository=ESPSomfy-RTS-enhanced">
   <img src="https://my.home-assistant.io/badges/hacs_repository.svg" alt="Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.">
 </a>
 
+#### ESPSomfy-RTS-HA de rstrouse — compatible, avec deux réserves
 
+Si vous utilisez déjà l'intégration d'origine, vos entités, appareils et automatisations continuent de fonctionner normalement — à condition que vos entités gardent les mêmes identifiants. Deux limites à connaître :
 
+* **Les notes de version du firmware ne s'affichent pas** dans Home Assistant : cette intégration n'a pas la fonction.
+* **Une sécurité complète lui coupe l'accès, définitivement.** Toutes ses requêtes reçoivent un `401` et sa WebSocket est refusée : elle n'envoie pas de clé d'API, et elle apprend qu'il faut s'authentifier depuis une réponse qui est elle-même refusée. Elle ne peut donc pas s'en sortir seule.
+
+> [!IMPORTANT]
+> **Le mode « configuration seule » est ce qui fait la différence.** Il ne protège que les écrans de configuration et laisse ouvertes les routes dont une intégration a besoin : une sécurité active ne casse alors rien du tout.
+>
+> C'est le **réglage par défaut depuis la v2.6.0**, sur un appareil neuf ou réinitialisé. Une mise à jour, elle, conserve le réglage déjà enregistré : si votre appareil est plus ancien, vérifiez la case dans `Système` > `Sécurité` **avant** de poser un code PIN.
+>
+> Pour une protection complète, passez à ESPSomfy-RTS Enhanced **v2.6.0 ou plus récente** : elle sait s'authentifier.
 
 ## Feuille de route du projet ESPSomfy-RTS
 
@@ -98,7 +131,7 @@ Vous voulez savoir ce qui arrive ensuite, suivre l'avancement de la version en c
 
 [![ESPSomfy-RTS Roadmap](https://img.shields.io/badge/Voir_en_Direct-Feuille_de_route_🗣️-238636?style=for-the-badge&logo=github)](https://github.com/users/xkain/projects/2)
 
-> 💡 **Cliquez sur le badge ci-dessus** pour suivre le développement en temps réel, les jalons actifs (`v2.5.3`, `v3.0.0`), et soumettre des fonctionnalités ou des corrections de bugs directement dans les colonnes de notre flux de travail.
+> 💡 **Cliquez sur le badge ci-dessus** pour suivre le développement en temps réel, les jalons en cours, et soumettre des fonctionnalités ou des corrections de bugs directement dans les colonnes du flux de travail.
 
 <br />
 
@@ -109,15 +142,12 @@ Si vous perdez l'accès à l'interface web (erreur de configuration réseau ou m
 
 
 > [!IMPORTANT]
-> La procédure dépend de la version de votre firmware. Un système à deux niveaux a été introduit dans la **v2.5.1** pour permettre de réinitialiser le réseau sans perdre toutes vos configurations (ce qui n'est pas le cas si vous utilisez la version **2.5.0**).
+> La réinitialisation se fait **à deux niveaux**, pour ne pas vous obliger à tout perdre quand seul le réseau est en cause.
 
 ### Résumé des procédures
 
-* **Version v2.5.1+ :**
-    * **3 Cycles :** Réinitialise la configuration Wi-Fi et désactive les paramètres de sécurité.
-    * **6 Cycles :** Réinitialisation d'usine complète (**Full Wipe**).
-* **Version v2.5.0 :**
-    * **4 Cycles :** Réinitialisation d'usine complète (**Full Wipe**).
+* **3 cycles d'alimentation :** réinitialise la configuration Wi-Fi et désactive les paramètres de sécurité. Vos équipements, groupes et pièces sont conservés.
+* **6 cycles d'alimentation :** réinitialisation d'usine complète (**Full Wipe**).
 
 ### 📖 Documentation complète
 Pour voir les instructions détaillées et les diagrammes de cycles, veuillez consulter la page dédiée :
@@ -132,93 +162,121 @@ Pour voir les instructions détaillées et les diagrammes de cycles, veuillez co
 
 ## 📸 Captures d'écran
 
-### 📱 Vue Mobile (Mode Sombre)
+*Cliquez sur une capture pour l'ouvrir en pleine résolution.*
+
+#### 📱 Mobile — mode sombre
 <p align="center">
-  <img src="https://github.com/xkain/ESPSomfy-RTS/blob/main/images/dark-mobile00.png?raw=true" width="23%" />
-  <img src="https://github.com/xkain/ESPSomfy-RTS/blob/main/images/dark-mobile01.png?raw=true" width="23%" />
-  <img src="https://github.com/xkain/ESPSomfy-RTS/blob/main/images/dark-mobile02.png?raw=true" width="23%" />
-  <img src="https://github.com/xkain/ESPSomfy-RTS/blob/main/images/dark-mobile03.png?raw=true" width="23%" />
+  <a href="images/dark-mobile00.png"><img src="images/dark-mobile00.png" width="23%" alt="Tableau de bord sur mobile" /></a>
+  <a href="images/dark-mobile01.png"><img src="images/dark-mobile01.png" width="23%" alt="Carte d'équipement sur mobile" /></a>
+  <a href="images/dark-mobile02.png"><img src="images/dark-mobile02.png" width="23%" alt="Configuration sur mobile" /></a>
+  <a href="images/dark-mobile03.png"><img src="images/dark-mobile03.png" width="23%" alt="Réglages sur mobile" /></a>
 </p>
 
-### 💻 Vue Bureau (Mode Sombre)
+#### 💻 Bureau — mode sombre
 <p align="center">
-  <img src="https://github.com/xkain/ESPSomfy-RTS/blob/main/images/dark00.png?raw=true" width="80%" /><br><br>
-  <img src="https://github.com/xkain/ESPSomfy-RTS/blob/main/images/dark02.png?raw=true" width="80%" /><br><br>
-  <img src="https://github.com/xkain/ESPSomfy-RTS/blob/main/images/dark03.png?raw=true" width="80%" />
+  <a href="images/dark00.png"><img src="images/dark00.png" width="32%" alt="Tableau de bord" /></a>
+  <a href="images/dark02.png"><img src="images/dark02.png" width="32%" alt="Équipements" /></a>
+  <a href="images/dark03.png"><img src="images/dark03.png" width="32%" alt="Réglages" /></a>
 </p>
-
-<br>
 
 <details>
-<summary><b>✨ Cliquez ici pour voir les versions en Mode Clair</b></summary>
-  
-### 📱 Vue Mobile 
-<p align="center">
-  <img src="https://github.com/xkain/ESPSomfy-RTS/blob/main/images/clair-mobile00.png?raw=true" width="23%" />
-  <img src="https://github.com/xkain/ESPSomfy-RTS/blob/main/images/clair-mobile01.png?raw=true" width="23%" />
-  <img src="https://github.com/xkain/ESPSomfy-RTS/blob/main/images/clair-mobile02.png?raw=true" width="23%" />
-  <img src="https://github.com/xkain/ESPSomfy-RTS/blob/main/images/clair-mobile03.png?raw=true" width="23%" />
-</p>
+<summary><b>✨ Voir les mêmes écrans en mode clair</b></summary>
+<br />
 
-### 💻 Vue Bureau   
 <p align="center">
-  <img src="https://github.com/xkain/ESPSomfy-RTS/blob/main/images/clair00.png?raw=true" width="80%" /><br><br>
-  <img src="https://github.com/xkain/ESPSomfy-RTS/blob/main/images/clair02.png?raw=true" width="80%" /><br><br>
-  <img src="https://github.com/xkain/ESPSomfy-RTS/blob/main/images/clair03.png?raw=true" width="80%" />
+  <a href="images/clair-mobile00.png"><img src="images/clair-mobile00.png" width="23%" alt="Tableau de bord sur mobile, mode clair" /></a>
+  <a href="images/clair-mobile01.png"><img src="images/clair-mobile01.png" width="23%" alt="Carte d'équipement sur mobile, mode clair" /></a>
+  <a href="images/clair-mobile02.png"><img src="images/clair-mobile02.png" width="23%" alt="Configuration sur mobile, mode clair" /></a>
+  <a href="images/clair-mobile03.png"><img src="images/clair-mobile03.png" width="23%" alt="Réglages sur mobile, mode clair" /></a>
+</p>
+<p align="center">
+  <a href="images/clair00.png"><img src="images/clair00.png" width="32%" alt="Tableau de bord, mode clair" /></a>
+  <a href="images/clair02.png"><img src="images/clair02.png" width="32%" alt="Équipements, mode clair" /></a>
+  <a href="images/clair03.png"><img src="images/clair03.png" width="32%" alt="Réglages, mode clair" /></a>
 </p>
 </details>
-    
+
 ---
 
 ## 📚 Documentation & Ressources
 
-Puisqu'il s'agit d'un fork, vous pouvez vous appuyer sur la riche documentation originale pour les détails matériels techniques et les intégrations :
+La documentation de ce fork vit dans son **[wiki](https://github.com/xkain/ESPSomfy-RTS/wiki)**, en français : une page par écran de l'interface, à jour de la dernière version publiée.
 
-* 📖 **[Configuration du logiciel](https://github.com/rstrouse/ESPSomfy-RTS/wiki/Configuring-the-Software)**
-* ⚙️ **[Installation du firmware](https://github.com/rstrouse/ESPSomfy-RTS/wiki/Installing-the-Firmware)**
-* 🔄 **[Comment mettre à jour ESPSomfy RTS](https://github.com/rstrouse/ESPSomfy-RTS/wiki/Updating-ESPSomfy-RTS)**
-* 🔌 **[Intégrations](https://github.com/xkain/ESPSomfy-RTS/wiki/Intégrations)**
-
-
----
-
-## 🙏 Crédits
-Un merci tout particulier à [rstrouse](https://github.com/rstrouse) pour son travail incroyable sur le projet original ESPSomfy-RTS
-
+* **[Guide d'installation](https://github.com/xkain/ESPSomfy-RTS/wiki/Guide-d'installation)** — flasher un ESP32 par USB depuis le navigateur, et arriver depuis le firmware de rstrouse.
+* **[Tableau de bord](https://github.com/xkain/ESPSomfy-RTS/wiki/Tableau-de-bord)** — la visite de l'interface : cartes de groupe et d'équipement, boutons, témoins et fenêtres de positionnement.
+* **[Équipements](https://github.com/xkain/ESPSomfy-RTS/wiki/EQUIPEMENTS)** et **[Groupes](https://github.com/xkain/ESPSomfy-RTS/wiki/GROUPES-(Groups))** — créer une fiche, chronométrer la course, appairer le moteur, lier vos télécommandes physiques.
+* **[Configurer la Radio](https://github.com/xkain/ESPSomfy-RTS/wiki/Configurer-la-Radio)** — assignation des GPIO, accord de la fréquence, et un cas concret quand certains équipements ne répondent pas.
+* **[Mettre à jour](https://github.com/xkain/ESPSomfy-RTS/wiki/Mettre-%C3%A0-jour)** — les trois fenêtres de mise à jour et les treize fichiers publiés par une *release*.
+* **[Intégrations](https://github.com/xkain/ESPSomfy-RTS/wiki/Int%C3%A9grations)** — API REST, MQTT et Home Assistant.
 
 ---
 
+## Crédits
 
+Un merci tout particulier à l'auteur **[rstrouse](https://github.com/rstrouse)** pour son travail incroyable sur le projet original ESPSomfy-RTS.
 
-## 📦 Boîtiers Prêts à l'Emploi (Plug & Play)
+### Contributeurs
 
-Si vous ne souhaitez pas fabriquer le matériel vous-même, je propose des **unités entièrement assemblées, flashées et testées individuellement** avant envoi. Ces boîtiers sont prêts à être alimentés pour piloter immédiatement vos équipements Somfy RTS 433 MHz.
+Merci à ceux qui prennent le temps de faire avancer le projet :
+
+<p align="center">
+  <a href="https://github.com/y-streibel-uiris">y-streibel-uiris</a>
+  &middot;
+  <a href="https://github.com/glich34">glich34</a>
+  &middot;
+  <a href="https://github.com/dirstel">dirstel</a>
+  &middot;
+  <a href="https://github.com/Peethiplatsch">Peethiplatsch</a>
+  &middot;
+  <a href="https://github.com/jcrespoc">jcrespoc</a>
+</p>
+
+---
+
+## 📦 Boîtiers prêts à l'emploi (Plug & Play)
+
+Si vous ne souhaitez pas fabriquer le matériel vous-même, je propose des **unités entièrement assemblées, flashées et testées individuellement** avant envoi. Elles sont prêtes à être alimentées pour piloter immédiatement vos équipements Somfy RTS 433 MHz.
 
 🛒 **Disponibles à l'achat sur [Leboncoin](https://www.leboncoin.fr/profile/77a39e2a-ddb5-44c8-828a-954652c46ee7)**
 
+### Deux éditions
 
+| | **Édition Wi-Fi** | **Édition Ethernet & Wi-Fi** |
+| --- | --- | --- |
+| **Microcontrôleur** | ESP32 D1 Mini | ESP32 WT32-ETH01 |
+| **Radio** | E07-M1101D-SMA (CC1101) | E07-M1101D-SMA (CC1101) |
+| **Antenne** | 3 dBi amovible | 3 dBi amovible |
+| **Réseau** | Wi-Fi | **Ethernet filaire** ou Wi-Fi |
+| **PCB** | développé sur mesure | développé sur mesure |
+| **Pont USB-série** | CP2102, présent sur la carte D1 Mini | module CH340N SOP8 soudé sur le PCB, le WT32-ETH01 n'en ayant pas |
+| **Reflashage** | se branche et se flashe en USB-C, sans manipulation | bouton-poussoir en face inférieure pour passer en mode flash au branchement |
 
+L'édition **Ethernet & Wi-Fi** s'adresse à ceux dont le boîtier doit être posé là où le Wi-Fi ne porte pas, ou qui préfèrent une liaison filaire pour une passerelle domotique. Le réseau se choisit dans l'interface : rien n'est figé au montage.
 
+> [!CAUTION]
+> **Soignez l'alimentation de l'édition Ethernet & Wi-Fi.** Le WT32-ETH01 supporte très mal les micro-coupures et les sous-tensions, au risque d'être dégradé **de façon permanente**. Utilisez un chargeur stable d'au moins **1,5 A** — un petit onduleur écarte le problème pour de bon. Pour l'édition Wi-Fi, un chargeur de téléphone d'au moins 1 A suffit.
 
 > [!IMPORTANT]
 > **💡 Note sur la configuration et l'assistant intégré**
-> 
+>
 > **L'assistant de préconfiguration automatique a déjà été exécuté par mes soins sur votre boîtier avant son expédition.** Votre appareil est donc configuré et prêt à l'emploi dès la première mise sous tension :
-> * Interface entièrement en **Français**.
-> * Fuseau horaire local configuré (**Europe/Paris**).
-> * Module radio **activé** et **GPIO spécifiques** à votre modèle déjà assignés.
+> * interface entièrement en **français** ;
+> * fuseau horaire local configuré (**Europe/Paris**) ;
+> * module radio **activé** et **GPIO spécifiques** à votre modèle déjà assignés.
 >
->Pour retrouver toutes les caractéristiques et détails, une page dédiée aux **[boîtiers](https://github.com/xkain/ESPSomfy-RTS/wiki/BO%C3%8ETIERS-LEBONCOIN)** est disponible.
+> Pour retrouver toutes les caractéristiques et détails, une page dédiée aux **[boîtiers préassemblés](https://github.com/xkain/ESPSomfy-RTS/wiki/Bo%C3%AEtiers-pr%C3%A9assembl%C3%A9s)** est disponible.
 >
-> ⚠️ **En cas de perte de configuration :** Si après une mise à jour majeure ou une réinitialisation d'usine (*Factory Reset*) vos équipements ne répondent plus, pas de panique ! L'assistant reste disponible dans l'interface web.
+> ⚠️ **En cas de perte de configuration :** si après une mise à jour majeure ou une réinitialisation d'usine vos équipements ne répondent plus, pas de panique — l'assistant reste disponible dans l'interface web.
 
-
-<br><br>
+<br>
 
 <p align="center">
-  <img src="https://github.com/xkain/ESPSomfy-RTS/blob/main/images/boncoin02.jpg?raw=true" width="33%" />
-  <img src="https://github.com/xkain/ESPSomfy-RTS/blob/main/images/boncoin00.jpg?raw=true" width="33%" />
-  <img src="https://github.com/xkain/ESPSomfy-RTS/blob/main/images/boncoin01.jpg?raw=true" width="33%" />
+  <a href="images/boncoin02.jpg"><img src="images/boncoin02.jpg" width="32%" alt="Boîtier préassemblé" /></a>
+  <a href="images/boncoin00.jpg"><img src="images/boncoin00.jpg" width="32%" alt="Boîtier préassemblé, vue de face" /></a>
+  <a href="images/boncoin01.jpg"><img src="images/boncoin01.jpg" width="32%" alt="Boîtier préassemblé, vue de dos" /></a>
 </p>
-
-
+<p align="center">
+  <a href="images/boncoin03.jpg"><img src="images/boncoin03.jpg" width="32%" alt="Édition Ethernet & Wi-Fi" /></a>
+  <a href="images/boncoin04.jpg"><img src="images/boncoin04.jpg" width="32%" alt="Édition Ethernet & Wi-Fi, vue de dos" /></a>
+  <a href="images/boncoin05.jpg"><img src="images/boncoin05.jpg" width="32%" alt="Édition Ethernet & Wi-Fi, boîtier ouvert" /></a>
+</p>

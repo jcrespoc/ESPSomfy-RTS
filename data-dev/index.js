@@ -57,7 +57,7 @@ const translator = {
 };
 function loadLang(callback) {
     if (Object.keys(LANG).length > 0) {
-        console.log("Langue déjà en mémoire, utilisation du cache.");
+        console.log("Language already in memory, using cache.");
         if (callback) callback();
         return;
     }
@@ -69,7 +69,7 @@ function loadLang(callback) {
         finishLoad(callback);
     })
     .catch(err => {
-        console.error("Erreur langue, mode secours activé", err);
+        console.error("Language error, fallback mode enabled", err);
         LANG = { "BT_LOGIN": "Login", "HOME": "Maison" };
         translator.init();
         finishLoad(callback);
@@ -128,7 +128,7 @@ function refreshUptime() {
         displayUptime(ctx.netUptime || 0, 'net-display');
     });
 }
-// ui.errorMessage() injecte son message via innerHTML, et un nom est saisi par l'utilisateur.
+// ui.errorMessage() injects its message through innerHTML, and a name is user input.
 function escHtml(str) {
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
@@ -380,11 +380,11 @@ function getJSON(url, cb) {
             err.htmlError = status;
             err.service = `GET ${url}`;
             if (typeof err.desc === 'undefined') err.desc = xhr.statusText || httpStatusText[xhr.status || 500];
-            // `err` et NON `xhr.response` : avec responseType='json', un corps qui n'est pas du JSON
-            // -- le "Unauthorized API Key" en text/plain d'un 401, par exemple -- rend `xhr.response`
-            // NUL. Le rappel recevait donc cb(null, null), tous les appelants prenaient leur branche
-            // de succes avec des donnees nulles, et plantaient sur le premier champ lu. Defaut
-            // present depuis l'origine, mais inatteignable tant qu'aucune route ne repondait 401.
+            // `err` and NOT `xhr.response`: with responseType='json', a body that is not JSON --
+            // the text/plain "Unauthorized API Key" of a 401, for instance -- makes `xhr.response`
+            // NULL. The callback got cb(null, null), every caller took its success branch with null
+            // data and threw on the first field it read. Present from the start, but unreachable
+            // until a route began answering 401.
             cb(err, null);
         }
         else {
@@ -412,11 +412,11 @@ function getJSONSync(url, cb) {
             err.htmlError = status;
             err.service = `GET ${url}`;
             if (typeof err.desc === 'undefined') err.desc = xhr.statusText || httpStatusText[xhr.status || 500];
-            // `err` et NON `xhr.response` : avec responseType='json', un corps qui n'est pas du JSON
-            // -- le "Unauthorized API Key" en text/plain d'un 401, par exemple -- rend `xhr.response`
-            // NUL. Le rappel recevait donc cb(null, null), tous les appelants prenaient leur branche
-            // de succes avec des donnees nulles, et plantaient sur le premier champ lu. Defaut
-            // present depuis l'origine, mais inatteignable tant qu'aucune route ne repondait 401.
+            // `err` and NOT `xhr.response`: with responseType='json', a body that is not JSON --
+            // the text/plain "Unauthorized API Key" of a 401, for instance -- makes `xhr.response`
+            // NULL. The callback got cb(null, null), every caller took its success branch with null
+            // data and threw on the first field it read. Present from the start, but unreachable
+            // until a route began answering 401.
             cb(err, null);
         }
         else {
@@ -606,10 +606,10 @@ async function initSockets() {
     try {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const port = window.location.protocol === 'https:' ? '' : ':8080';
-        // Le jeton part dans l'URL : l'API WebSocket du navigateur n'accepte aucun en-tete
-        // personnalise, et le firmware lit donc "apikey" dans la chaine de requete de la poignee de
-        // main (cf. socketHandshakeAuthorized, src/Sockets.cpp). Sans securite ou en "config seule",
-        // le firmware ne regarde rien et le parametre est simplement ignore.
+        // The token travels in the URL: the browser WebSocket API accepts no custom header, so the
+        // firmware reads "apikey" from the handshake query string instead (see
+        // socketHandshakeAuthorized, src/Sockets.cpp). With security off, or set to config-only, the
+        // firmware looks at nothing and the parameter is simply ignored.
         const sockQuery = security.apiKey ? `?apikey=${encodeURIComponent(security.apiKey)}` : '';
         socket = new WebSocket(`${protocol}//${host}${port}/${sockQuery}`);
         socket.onmessage = (evt) => {
@@ -700,12 +700,11 @@ async function initSockets() {
                 (async () => {
                     ui.clearErrors();
                     refreshUptime();
-                    // Les reglages reseau et MQTT sont desormais des routes de niveau Config : les
-                    // precharger sans jeton afficherait une erreur 401 a chaque (re)connexion de la
-                    // socket en mode "config seule", alors que l'utilisateur n'a rien demande. On ne
-                    // charge ici que ce que la politique autorise a cet instant ; toggleConfig()
-                    // reclame de toute facon une authentification avant d'ouvrir la configuration, et
-                    // c'est lui qui declenchera leur chargement.
+                    // Network and MQTT settings are Config-level routes now: preloading them with
+                    // no token would raise a 401 on every socket (re)connection in config-only mode,
+                    // without the user having asked for anything. Only what the policy allows right
+                    // now is loaded here; toggleConfig() asks for authentication before opening the
+                    // configuration anyway, and it is what triggers their load.
                     const configAccessible = security.type === 0 || security.authenticated;
                     await general.loadGeneral();
                     await somfy.loadSomfy();
@@ -769,9 +768,9 @@ function clearOverlays() {
     selectors.forEach(s => document.querySelectorAll(s).forEach(el => el.remove()));
 }
 /**
- * synchronisation Sidebar et Tabs
- * @param {string} groupId - L'ID du groupe à activer
- * @param {boolean} isSubTab - Si c'est un sous-onglet
+ * Keeps the sidebar and the tabs in step
+ * @param {string} groupId - id of the group to activate
+ * @param {boolean} isSubTab - whether this is a sub-tab
  */
 function syncNavigationState(groupId, isSubTab = false) {
     if (!groupId) return;
@@ -860,6 +859,13 @@ function bindNavigation() {
         });
     });
 }
+function chipFamily() {
+    const cm = (get('divContainer').getAttribute('data-chipmodel') || "").toLowerCase().trim();
+    if (cm.includes("s3")) return "s3";
+    if (cm.includes("c3")) return "c3";
+    if (cm.includes("s2")) return "s2";
+    return "esp32";
+}
 function stepDeviceGpio(pinKey, direction, prefix, boardSelectId, isManualCallback, pinMaps) {
     const selBoard = get(boardSelectId);
     if (!selBoard) return;
@@ -875,8 +881,7 @@ function stepDeviceGpio(pinKey, direction, prefix, boardSelectId, isManualCallba
         if (isNaN(current)) current = 0;
 
         let next = current + direction;
-        const cm = (get('divContainer').getAttribute('data-chipmodel') || "").toLowerCase();
-        const pm = pinMaps.find(x => x.name === cm) || { maxPins: 39 };
+        const pm = pinMaps.find(x => x.name === chipFamily()) || { maxPins: 39 };
 
         if (next < 0 || next > pm.maxPins) return;
 
@@ -1401,10 +1406,10 @@ class UIBinder {
             }
         }
     }
-    /**Dirige l'attention de l'utilisateur sur un élément spécifique
-     * @param {string|HTMLElement} target - ID de l'élément ou l'élément lui-même
-     * @param {boolean} activate - Activer ou désactiver l'animation
-     * @param {string} color - Couleur spécifique (ex: 'red', '#FFA500')
+    /**Draws the user's attention to one particular element
+     * @param {string|HTMLElement} target - id of the element, or the element itself
+     * @param {boolean} activate - turn the animation on or off
+     * @param {string} color - a specific colour (e.g. 'red', '#FFA500')
      */
     setFocus(target, activate = true, color = null) {
         let el = (typeof target === 'string') ? document.getElementById(target) : target;
@@ -1544,9 +1549,9 @@ class UIBinder {
         somfy.checkEmptyState();
         document.querySelector('#btnConfig use').setAttribute('href', '#svg-tabSettings');
         if (sockIsOpen) socket.send('leave:0');
-        // permissions 0x01 (config seule) et non 0 : c'est le defaut cote firmware aussi (cf.
-        // SecuritySettings::permissions). Poser un PIN sans toucher a la case ne doit pas basculer en
-        // securite complete a l'insu de l'utilisateur -- c'est ce mode qui coupe les clients tiers.
+        // permissions 0x01 (config only) and not 0: that is the firmware default too (see
+        // SecuritySettings::permissions). Setting a PIN without touching the checkbox must not
+        // silently switch to full security -- that mode is the one that cuts off third-party clients.
         general.setSecurityConfig({ type: 0, username: '', hasPassword: false, hasPin: false, permissions: 0x01 });
     }
     toggleConfig() {
@@ -1595,26 +1600,24 @@ class UIBinder {
     }
 }
 var ui = new UIBinder();
-// Emplacement de la cle de session. sessionStorage et NON localStorage : la cle survit aux
-// rechargements de page de CET onglet -- et il y en a beaucoup, un changement de langue comme une
-// mise a jour se terminant par un window.location.reload() -- mais disparait a la fermeture de
-// l'onglet. C'est la duree de vie attendue sur un appareil protege par un PIN : une session, pas une
-// confiance permanente accordee au navigateur.
-// Ce que ce stockage n'aggrave PAS : la cle est deja lisible par le JavaScript de la page, elle
-// voyage en clair dans un en-tete `apikey` a chaque requete sur du HTTP local sans TLS, et elle est
-// de toute facon deterministe -- HMAC(secret, PIN + IP), cf. Web::createAPIToken. La garder dans
-// l'onglet ne cree aucune exposition nouvelle ; elle evite en revanche une resaisie du PIN a chaque
-// rechargement, laquelle pousse surtout a choisir un code trivial.
+// Where the session key lives. sessionStorage and NOT localStorage: the key survives page reloads
+// of THIS tab -- and there are many, a language change as much as an update ending in
+// window.location.reload() -- but is gone when the tab closes. That is the lifetime a PIN-protected
+// device calls for: one session, not permanent trust granted to the browser.
+// What this storage does NOT make worse: the key is already readable by the page's own JavaScript,
+// it travels in the clear in an `apikey` header on every request over local HTTP without TLS, and
+// it is deterministic anyway -- HMAC(secret, PIN + IP), see Web::createAPIToken. Keeping it in the
+// tab creates no new exposure; what it avoids is retyping the PIN on every reload, which mostly
+// pushes people towards a trivial code.
 const SECURITY_SESSION_KEY = 'espsomfy.apiKey';
 class Security {
     type = 0;
     authenticated = false;
     apiKey = '';
     permissions = 0;
-    // Les trois acces sont enveloppes : l'API leve (SecurityError) quand le stockage est desactive
-    // par la configuration du navigateur. Un echec ici ne doit jamais empecher de se connecter --
-    // on retombe simplement sur le comportement d'avant, une session en memoire perdue au
-    // rechargement.
+    // All three accesses are wrapped: the API throws (SecurityError) when storage is disabled by
+    // browser configuration. A failure here must never stop anyone from signing in -- it simply
+    // falls back to the former behaviour, an in-memory session lost on reload.
     _restoreSessionKey() {
         try {
             const k = window.sessionStorage.getItem(SECURITY_SESSION_KEY);
@@ -1631,19 +1634,18 @@ class Security {
         try { window.sessionStorage.removeItem(SECURITY_SESSION_KEY); } catch (err) { /* idem */ }
     }
     async init() {
-        // AVANT loadContext : c'est cette cle que la requete /loginContext presente, et c'est son
-        // verdict `authenticated` qui decidera si la session est reprise ou si l'ecran de connexion
-        // reapparait. C'est aussi avant tout initSockets(), dont la poignee de main porte la cle en
-        // parametre de requete.
+        // BEFORE loadContext: this is the key the /loginContext request presents, and its
+        // `authenticated` verdict is what decides whether the session resumes or the login screen
+        // comes back. It is also before any initSockets(), whose handshake carries the key as a
+        // query parameter.
         this._restoreSessionKey();
         let fld = get('divUnauthenticated').querySelector('.pin-digit[data-bind="security.pin.d0"]');
         get('divUnauthenticated').querySelector('.pin-digit[data-bind="login.pin.d3"]').addEventListener('digitentered', (evt) => {
             security.login();
         });
         await this.loadContext();
-        // `this.authenticated` ajoute : en securite complete, une session reprise depuis le
-        // sessionStorage est deja valide, l'interface ne doit pas rester derriere l'ecran de
-        // connexion.
+        // `this.authenticated` added: under full security a session resumed from sessionStorage is
+        // already valid, and the UI must not stay behind the login screen.
         if (this.type === 0 || this.authenticated || (this.permissions & 0x01) === 0x01) { // No login required, session restored, or only the config is protected.
             if (typeof socket === 'undefined' || !socket) (async () => { await initSockets(); })();
             //ui.setMode(mode);
@@ -1656,7 +1658,7 @@ class Security {
         const pnl = get('divUnauthenticated');
         if (!pnl) return;
 
-        // Cache groupé des éléments de login
+        // Grouped cache of the login elements
         const qs = (s) => pnl.querySelector(s);
         const btn = qs('#loginButtons'), pwd = qs('#divLoginPassword'), pin = qs('#divLoginPin');
         pnl.style.display = btn.style.display = pwd.style.display = pin.style.display = 'none';
@@ -1670,7 +1672,7 @@ class Security {
                     displayUptime(ctx.uptime || 0, 'uptime-display');
                     displayUptime(ctx.netUptime || 0, 'net-display');
                     if (ctx.cpuFreq) get('info-cpu').textContent = `${ctx.cores > 1 ? 'Dual' : 'Single'}-Core @ ${ctx.cpuFreq} ${tr('MHZ')}`;
-                    // Flash & FileSystem (Regroupé)
+                    // Flash & FileSystem (grouped)
                     if (ctx.flashSize) {
                         get('info-flash').innerHTML = `<span>${tr('FW_TOTAL')}: </span><span class="status-detail">${ctx.flashSize}</span> Mo (<span class="hide550">${tr('FW_SPEED')}: </span><span class="status-detail">${ctx.flashSpeed}</span> ${tr('MHZ')})`;
                     }
@@ -1686,14 +1688,14 @@ class Security {
 
                     this.type = ctx.type;
                     this.permissions = ctx.permissions;
-                    // Verdict du FIRMWARE sur la cle qui vient d'etre presentee avec cette requete
-                    // (champ `authenticated` de /loginContext), pas une deduction du navigateur.
-                    // C'est ce qui rend la reprise de session sure. Le cas type === 0 reste `false`
-                    // a dessein : sans securite il n'y a pas de session, et tout le reste du code
-                    // teste `security.type === 0 || security.authenticated`.
+                    // The FIRMWARE's verdict on the key just presented with this request (the
+                    // `authenticated` field of /loginContext), not something the browser worked out.
+                    // That is what makes resuming a session safe. The type === 0 case stays `false`
+                    // on purpose: with security off there is no session, and the rest of the code
+                    // tests `security.type === 0 || security.authenticated`.
                     this.authenticated = (ctx.type !== 0) && !!ctx.authenticated;
-                    // Cle refusee : on ne la garde pas d'un rechargement a l'autre, sinon chaque
-                    // chargement de page repart avec une cle morte et redeclenche un cycle de 401.
+                    // Key refused: it is not kept across reloads, otherwise every page load starts
+                    // again with a dead key and sets off another round of 401s.
                     if (ctx.type !== 0 && !this.authenticated) {
                         this.apiKey = '';
                         this._clearSessionKey();
@@ -1735,7 +1737,7 @@ class Security {
         console.log('Logging in...');
         let pnl = get('divUnauthenticated');
         let btn = pnl.querySelector('#btnLogin');
-        // Verrou actif : la saisie du 4e chiffre PIN resoumettrait sans ce garde-fou.
+        // Lock held: typing the 4th PIN digit would resubmit without this guard.
         if (btn && btn.disabled) return;
         let msg = pnl.querySelector('#spanLoginMessage');
         msg.innerHTML = '';
@@ -1984,18 +1986,18 @@ class General {
                 console.error(err);
                 return;
             }
-            console.log("Settings reçus:", settings);
+            console.log("Settings received:", settings);
 
             get('spanFwVersion').innerText = settings.fwVersion;
             get('spanHwVersion').innerText = settings.chipModel.length > 0 ? '-' + settings.chipModel : '';
             get('divContainer').setAttribute('data-chipmodel', settings.chipModel);
 
-            // initPins() APRES data-chipmodel : loadPins() lit cet attribut pour choisir la table
-            // de broches (pinMaps). Appele avant, il ne trouvait rien et retombait sur la table
-            // generique ESP32, qui exclut GPIO 6/7/8/9 (flash SPI du 32 classique) et 3 (UART0).
-            // Un brochage legitime pose sur ces broches -- cas du XIAO-C3 -- n'avait alors aucune
-            // <option> correspondante : le select retombait sur sa premiere entree (GPIO-02) et
-            // l'ecran affichait 2 a la place de la vraie valeur.
+            // initPins() AFTER data-chipmodel: loadPins() reads that attribute to pick the pin
+            // table (pinMaps). Called before, it found nothing and fell back to the generic ESP32
+            // table, which excludes GPIO 6/7/8/9 (the SPI flash of the plain 32) and 3 (UART0). A
+            // legitimate pinout using those pins -- the XIAO-C3 case -- then had no matching
+            // <option>: the select fell back to its first entry (GPIO-02) and the screen showed 2
+            // instead of the real value.
             if (typeof somfy !== 'undefined') somfy.initPins();
 
             this.setAppVersion();
@@ -2104,10 +2106,10 @@ class General {
         }
     }
     setSecurityConfig(security) {
-        // /getSecurity ne renvoie PLUS ni le mot de passe ni le PIN, seulement leur presence
-        // (hasPassword / hasPin) : le secret ne traverse plus le reseau, meme pour l'interface
-        // legitime, meme authentifiee. Les champs restent donc vides a l'affichage, et un champ laisse
-        // vide a l'enregistrement signifie "inchange" cote firmware (cf. parseSecretString).
+        // /getSecurity NO LONGER returns the password or the PIN, only whether they exist
+        // (hasPassword / hasPin): the secret no longer crosses the network, not even for the
+        // legitimate UI, not even authenticated. The fields therefore stay empty on screen, and a
+        // field left empty on save means "unchanged" to the firmware (see parseSecretString).
         this._hasPassword = makeBool(security.hasPassword);
         this._hasPin = makeBool(security.hasPin);
         let obj = {
@@ -2118,14 +2120,13 @@ class General {
             }
         };
         ui.toElement(get('divSecurityOptions'), obj);
-        // Dire a l'utilisateur que le secret existe bien, puisque le champ vide ne peut plus le
-        // montrer -- sans quoi il croirait l'avoir perdu.
+        // Tell the user the secret does exist, since an empty field can no longer show it --
+        // otherwise they would think it had been lost.
         const pnl = get('divSecurityOptions');
         const fldPwd = pnl.querySelector('#fldPassword');
-        // Marqueur non linguistique volontairement : introduire une cle de traduction ici
-        // obligerait a toucher aux fichiers de locale, dont fr.json est la source de verite tenue par
-        // le mainteneur. Des points suffisent a dire "un mot de passe existe, laisse vide pour le
-        // garder" sans rien traduire.
+        // Deliberately a non-linguistic marker: adding a translation key here would mean touching
+        // the locale files, where fr.json is the source of truth the maintainer keeps by hand. Dots
+        // are enough to say "a password exists, leave empty to keep it" without translating a thing.
         if (fldPwd && this._hasPassword) fldPwd.placeholder = '••••••••';
         this.onSecurityTypeChanged();
     }
@@ -2144,13 +2145,12 @@ class General {
         if (sel) sel.disabled = true;
         localStorage.setItem('selectedLang', lang);
 
-        // /setLang est une route de niveau CONTROLE : sans en-tete `apikey` le firmware repond 401,
-        // avec un corps text/plain que le .json() d'origine tentait de parser -- d'ou le
-        // « JSON.parse: unexpected character » et un changement de langue qui echouait en silence
-        // des que la securite etait active. Cet appel etait le seul `fetch` brut vers l'appareil
-        // (hormis /lang, qui est public) : tous les autres passent par les aides xhr, qui posent la
-        // cle. On la pose donc ici aussi, et on traite le refus au lieu de le laisser remonter en
-        // SyntaxError.
+        // /setLang is a CONTROL-level route: with no `apikey` header the firmware answers 401, with
+        // a text/plain body that the original .json() tried to parse -- hence the "JSON.parse:
+        // unexpected character" and a language change that failed silently as soon as security was
+        // on. This call was the only raw `fetch` to the device (apart from /lang, which is public):
+        // every other one goes through the xhr helpers, which set the key. So it is set here too,
+        // and the refusal is handled instead of surfacing as a SyntaxError.
         fetch(baseUrl + '/setLang?lang=' + lang, {
             headers: { apikey: (typeof security !== 'undefined' ? security.apiKey : '') || '' }
         })
@@ -2173,11 +2173,10 @@ class General {
             }
         })
         .catch(err => {
-            // L'echec etait jusqu'ici invisible : seule la console le signalait, le selecteur
-            // revenait a son etat precedent et l'utilisateur ne savait pas pourquoi. Le detail
-            // technique reste en console ; a l'ecran, un libelle traduit. On n'injecte pas
-            // err.message dans le HTML du message : il peut porter un extrait du corps de la
-            // reponse.
+            // The failure used to be invisible: only the console mentioned it, the selector snapped
+            // back to its previous state and the user had no idea why. The technical detail stays in
+            // the console; on screen, a translated label. err.message is not injected into the
+            // message HTML: it can carry a fragment of the response body.
             console.error("Erreur lors du changement de langue:", err);
             if (sel) sel.disabled = false;
             if (typeof ui !== 'undefined') ui.errorMessage(tr('ERR_LANG_CHANGE'));
@@ -2222,31 +2221,31 @@ class General {
         };
         let confirmText = '';
         if (s.type === 1) {
-            // Un PIN vide est legitime quand il en existe deja un : les champs ne sont plus
-            // pre-remplis (le firmware ne les renvoie pas), donc exiger 4 chiffres interdirait de
-            // modifier la seule case "config seule" sans retaper le code.
+            // An empty PIN is legitimate when one already exists: the fields are no longer
+            // prefilled (the firmware does not return them), so demanding 4 digits would forbid
+            // changing the config-only checkbox alone without retyping the code.
             if (pin.length === 0 && this._hasPin) { /* inchange */ }
             else if (pin.length !== 4) return this.secError('ERR_PIN_INVALID', 'ERR_PIN_INVALID_DESC');
             confirmText = `<p>${tr('SAVESECURITY_PIN_WARNING')}</p><p>${tr('SAVESECURITY_PIN_CONFIRM')}</p>`;
         }
         else if (s.type === 2) {
             if (!s.username) return this.secError('ERR_USERNAME_MISSING', 'ERR_USERNAME_MISSING_DESC');
-            // Idem : les deux champs vides signifient "mot de passe inchange", a condition qu'il en
-            // existe un. Sans mot de passe enregistre, un couple vide reste une erreur.
+            // Same here: both fields empty means "password unchanged", provided one exists. With no
+            // password stored, an empty pair is still an error.
             if (!s.password && !s.repeatpassword && !this._hasPassword)
                 return this.secError('ERR_PASSWORD_MISMATCH', 'ERR_PASSWORD_MISMATCH_DESC');
             if (s.password !== s.repeatpassword) return this.secError('ERR_PASSWORD_MISMATCH', 'ERR_PASSWORD_MISMATCH_DESC');
             confirmText = `<p>${tr('SAVESECURITY_PASSWORD_WARNING')}</p><p>${tr('SAVESECURITY_PASSWORD_CONFIRM')}</p>`;
         }
         else {
-            // Desactivation. C'est le cas qui merite le plus d'avertissement -- il ouvre l'interface
-            // ET l'API a tout le reseau local -- et c'etait le seul des trois a n'afficher qu'un
-            // titre, sans un mot d'explication.
+            // Turning security off. This is the case that deserves the most warning -- it opens the
+            // UI AND the API to the whole local network -- and it was the only one of the three to
+            // show nothing but a title, without a word of explanation.
             //
-            // trp() et non tr() directement : tr() renvoie le NOM de la cle quand elle manque (cf. sa
-            // definition en tete de fichier). Tant que ces deux cles ne sont pas traduites ailleurs
-            // que dans fr.json, un utilisateur en anglais verrait s'afficher "SAVESECURITY_NONE_WARNING"
-            // en toutes lettres. On prefere ne rien montrer plutot que de montrer ca.
+            // trp() and not tr() directly: tr() returns the NAME of the key when it is missing (see
+            // its definition at the top of this file). Until these two keys are translated anywhere
+            // other than fr.json, an English user would be shown "SAVESECURITY_NONE_WARNING" spelled
+            // out. Showing nothing is better than showing that.
             const trp = (k) => { const t = tr(k); return t === k ? '' : `<p>${t}</p>`; };
             confirmText = trp('SAVESECURITY_NONE_WARNING') + trp('SAVESECURITY_NONE_CONFIRM');
         }
@@ -2254,15 +2253,15 @@ class General {
             putJSONSync('/saveSecurity', data, (e, resp) => {
                 prompt.remove();
                 if (e) return ui.serviceError(e);
-                // Adopter l'etat renvoye par le firmware. Sans cela l'objet `security` du client
-                // reste a type=0 apres l'activation d'un PIN : tout ce qui decide d'apres lui -- le
-                // prechargement des reglages a la reconnexion de la socket, l'ouverture du panneau de
-                // configuration -- croit la securite desactivee, interroge des routes devenues
-                // protegees et se prend un 401.
+                // Adopt the state the firmware returns. Without it the client's `security` object
+                // stays at type=0 after a PIN is enabled: everything that decides from it -- the
+                // settings preload on socket reconnection, opening the configuration panel --
+                // believes security is off, queries routes that have just become protected and gets
+                // a 401.
                 //
-                // La cle est adoptee aussi : /saveSecurity en renvoie une valide, et l'utilisateur
-                // vient de prouver qu'il connait le secret en le saisissant. Le lui redemander
-                // immediatement apres n'ajouterait rien, et le ferait sortir du panneau ouvert.
+                // The key is adopted too: /saveSecurity returns a valid one, and the user has just
+                // proved they know the secret by typing it. Asking again immediately would add
+                // nothing, and would throw them out of the panel they have open.
                 if (resp) {
                     security.type = resp.type;
                     security.permissions = resp.permissions;
@@ -2271,10 +2270,10 @@ class General {
                         security.authenticated = resp.type !== 0;
                     }
                     if (resp.type === 0) { security.authenticated = false; security.apiKey = ''; }
-                    // Repercuter dans le sessionStorage : sans cela un changement de secret
-                    // laisserait l'ancienne cle en place, et le prochain rechargement de l'onglet
-                    // repartirait avec une cle morte. _persistSessionKey efface quand la cle est
-                    // vide, ce qui couvre aussi la desactivation de la securite.
+                    // Mirror it into sessionStorage: without that, changing the secret would leave
+                    // the old key in place and the tab's next reload would start again with a dead
+                    // one. _persistSessionKey clears when the key is empty, which also covers
+                    // security being turned off.
                     security._persistSessionKey();
                     general._hasPassword = makeBool(resp.hasPassword);
                     general._hasPin = makeBool(resp.hasPin);
@@ -2357,18 +2356,18 @@ class General {
             if (lbl) lbl.style.cssText = "color:var(--text-color);font-weight:bold";
         };
             try {
-                // Étape 1 : Fuseau horaire
+                // Step 1: time zone
                 const tz = get('selTimeZone');
                 if (tz) { tz.value = "CET-1CEST-2,M3.5.0/02:00:00,M10.5.0/03:00:00"; tz.dispatchEvent(new Event('change')); }
                 validateStep('tz');
                 await new Promise(r => setTimeout(r, 500));
 
-                // Étape 2 : Langue
+                // Step 2: language
                 this.onLanguageChanged('fr', false);
                 validateStep('lang');
                 await new Promise(r => setTimeout(r, 500));
 
-                // Étape 3 : Assignation dynamique des GPIO en fonction du boîtier choisi
+                // Step 3: GPIO assignment, driven by the enclosure that was picked
                 const sb = get('selRadioBoardType');
                 if (sb) {
                     sb.value = selectedBoxType;
@@ -2377,7 +2376,7 @@ class General {
                 validateStep('gpio');
                 await new Promise(r => setTimeout(r, 500));
 
-                // Étape 4 : Activation de la radio et sauvegarde globale
+                // Step 4: enable the radio and save everything
                 const cb = get('cbEnableRadio');
                 if (cb && !cb.checked) { cb.checked = true; cb.dispatchEvent(new Event('change')); }
 
@@ -2596,7 +2595,7 @@ class Wifi {
             inputEl.value = 0;
             inputEl.dispatchEvent(new Event('change', { bubbles: true }));
             this.updateEthernetSummary('PWRPin', 0);
-            this.togglePowerIcon(false); // Mode numérique -> Icône ON
+            this.togglePowerIcon(false); // Digital mode -> icon ON
             return;
         }
 
@@ -2634,7 +2633,7 @@ class Wifi {
         inputPwr.value = 'None';
 
         this.updateEthernetSummary('PWRPin', -1);
-        this.togglePowerIcon(true); // Mode None -> Icône OFF
+        this.togglePowerIcon(true); // None mode -> icon OFF
     }
     onDHCPClicked(cb) { get('divStaticIP').style.display = cb.checked ? 'none' : ''; }
 
@@ -2648,10 +2647,10 @@ class Wifi {
                 get('cbHardwired').checked = settings.connType >= 2;
                 get('cbFallbackWireless').checked = settings.connType === 3;
                 ui.toElement(pnl, settings);
-                // /networksettings ne renvoie plus la passphrase, seulement hasPassphrase : meme
-                // procede que pour la securite et MQTT. Vide = inchange cote firmware, SAUF via la
-                // boite de dialogue de connexion (/connectwifi), qui garde le pouvoir de poser une
-                // passphrase vide pour un reseau ouvert.
+                // /networksettings no longer returns the passphrase, only hasPassphrase: same
+                // approach as security and MQTT. Empty = unchanged to the firmware, EXCEPT through
+                // the connection dialog (/connectwifi), which keeps the power to set an empty
+                // passphrase for an open network.
                 const fldPhr = get('fldPassphrase');
                 if (fldPhr && settings.wifi && makeBool(settings.wifi.hasPassphrase)) fldPhr.placeholder = '••••••••';
 
@@ -2879,7 +2878,7 @@ class Wifi {
     saveNetwork() {
         let pnl = get('divNetAdapter'), obj = ui.fromElement(pnl);
         const eth = obj.ethernet;
-        // Si la valeur extraite est NaN, vide ou "None", on la remet proprement à -1
+        // When the extracted value is NaN, empty or "None", put it cleanly back to -1
         if (isNaN(eth.PWRPin) || eth.PWRPin === 'None' || eth.PWRPin === '') {
             eth.PWRPin = -1;
         }
@@ -3056,8 +3055,8 @@ class Somfy {
         { val: 4, label: 'LilyGO T-Internet POE', showGPIO: false, chips: ['esp32'], pins: { SCKPin: 14, CSNPin: 12, MOSIPin: 15, MISOPin: 16, TXPin: 4, RXPin: 35 } },
         { val: 5, label: 'wESP POE', showGPIO: false, chips: ['esp32'], pins: { SCKPin: 18, CSNPin: 5, MOSIPin: 13, MISOPin: 32, TXPin: 4, RXPin: 39 } },
         { val: 6, label: 'ESP-PoE-32', showGPIO: false, chips: ['esp32'], pins: { SCKPin: 14, CSNPin: 5, MOSIPin: 13, MISOPin: 32, TXPin: 4, RXPin: 35 } },
-        { val: 7, label: 'ESP32s3 Mini', showGPIO: false, chips: ['s3'], pins: { SCKPin: 7, CSNPin: 6, MOSIPin: 9, MISOPin: 8, TXPin: 3, RXPin: 4 } },
-        { val: 8, label: 'XIAO-ESP32-C3', showGPIO: false, chips: ['c3'], pins: { SCKPin: 8, CSNPin: 6, MOSIPin: 10, MISOPin: 9, TXPin: 3, RXPin: 4 } },
+        { val: 7, label: 'XIAO ESP32 S3', showGPIO: false, chips: ['s3'], pins: { SCKPin: 7, CSNPin: 6, MOSIPin: 9, MISOPin: 8, TXPin: 3, RXPin: 4 } },
+        { val: 8, label: 'XIAO ESP32 C3', showGPIO: false, chips: ['c3'], pins: { SCKPin: 8, CSNPin: 6, MOSIPin: 10, MISOPin: 9, TXPin: 3, RXPin: 4 } },
         { val: 9, label: 'ESP32c3 SuperMini', showGPIO: false, chips: ['c3'], pins: { SCKPin: 4, CSNPin: 7, MOSIPin: 6, MISOPin: 5, TXPin: 21, RXPin: 20 } },
         { val: 255, label: 'MANUAL_SETTINGS', showGPIO: true }
     ];
@@ -3067,11 +3066,11 @@ class Somfy {
         this.initialized = true;
     }
     initPins() {
-        // Mise en place a faire UNE SEULE fois par chargement de page : ecouteurs, listes
-        // d'<option> et valeurs de remplissage ci-dessous. loadGeneral() rappelle initPins() a
-        // chaque reouverture du socket ; sans cette garde, chaque reconnexion rempilait un
-        // ecouteur 'change' et surtout rejouait le ui.toElement de valeurs par defaut plus bas,
-        // ecrasant le brochage reel deja affiche par loadSomfy().
+        // Setup to run ONCE per page load: the listeners, the <option> lists and the filler values
+        // below. loadGeneral() calls initPins() again on every socket reopening; without this guard,
+        // each reconnection stacked another 'change' listener and, worse, replayed the ui.toElement
+        // of default values further down, overwriting the real pinout loadSomfy() had already
+        // displayed.
         if (this.pinsInitialized) return;
         this.pinsInitialized = true;
 
@@ -3100,13 +3099,7 @@ class Somfy {
     loadRadioBoardTypes(sel) {
         while (sel.firstChild) sel.removeChild(sel.firstChild);
 
-        let rawCm = get('divContainer').getAttribute('data-chipmodel') || "";
-        let cm = rawCm.toLowerCase().trim();
-
-        if (cm.includes("s3")) cm = "s3";
-        else if (cm.includes("c3")) cm = "c3";
-        else if (cm.includes("s2")) cm = "s2";
-        else cm = "esp32";
+        const cm = chipFamily();
 
         this.radioBoardTypes.forEach(t => {
             if (t.chips && !t.chips.includes(cm)) {
@@ -3123,7 +3116,7 @@ class Somfy {
     }
     onRadioBoardTypeChanged(sel, isInit = false) {
         const val = parseInt(sel.value, 10),
-        cm = (get('divContainer').getAttribute('data-chipmodel') || "").toLowerCase(),
+        cm = chipFamily(),
         divS = get('divGPIOSummary'),
         divG = get('divShowGpio'),
         pk = ['SCKPin', 'CSNPin', 'MOSIPin', 'MISOPin', 'TXPin', 'RXPin'],
@@ -3160,9 +3153,9 @@ class Somfy {
             if (selP) selP.style.display = target ? 'inline-block' : 'none';
             if (inpP) {
                 if (isM) {
-                    // GPIO-00 est une broche valide : la tester avec || la rendait falsy et
-                    // faisait basculer sur def[k] (c'est ainsi qu'un TX=0 s'affichait en 13).
-                    // On ne retient donc def[k] que si rien d'exploitable n'a ete lu.
+                    // GPIO-00 is a valid pin: testing it with || made it falsy and switched to
+                    // def[k] (that is how a TX=0 showed up as 13). def[k] is therefore kept only
+                    // when nothing usable was read.
                     const lu = isInit ? parseInt(selP?.value !== '' && selP?.value != null ? selP.value : inpP.value, 10) : NaN;
                     inpP.value = isNaN(lu) ? def[k] : lu;
                 }
@@ -3175,7 +3168,7 @@ class Somfy {
         divG.style.display = target ? 'none' : 'inline-block';
     }
     async loadSomfy() {
-        //console.trace("Appel à loadSomfy");
+        //console.trace("loadSomfy called");
         getJSONSync('/controller', (err, somfy) => {
             if (err) {
                 console.log(err);
@@ -3264,14 +3257,14 @@ class Somfy {
             if (el) t.config[k] = parseInt(el.value, 10);
         });
 
-        // Les trois curseurs portent data-setonly="true", donc ui.fromElement() les SAUTE a la
-        // lecture (cf. son filtre sur data-setonly) : leurs cles etaient purement absentes du
-        // payload, le firmware les gardait inchangees (ses tests containsKey) et save() reecrivait
-        // l'ancienne valeur. Regler la bande passante ou la puissance n'avait donc aucun effet, et
-        // une valeur erronee devenait irreparable depuis l'interface. On les lit ici explicitement,
-        // comme les broches juste au-dessus. ui.getValue() applique les conversions declarees dans
-        // index.html -- data-mult="100" pour les deux bandes, et data-datatype="index" +
-        // data-values pour la puissance, qui est un INDICE cote curseur mais des dBm cote firmware.
+        // The three sliders carry data-setonly="true", so ui.fromElement() SKIPS them when reading
+        // (see its data-setonly filter): their keys were simply absent from the payload, the
+        // firmware kept them unchanged (its containsKey tests) and save() wrote the old value back.
+        // Setting the bandwidth or the power therefore had no effect at all, and a wrong value
+        // became unfixable from the UI. They are read explicitly here, like the pins just above.
+        // ui.getValue() applies the conversions declared in index.html -- data-mult="100" for both
+        // bandwidths, and data-datatype="index" + data-values for the power, which is an INDEX on
+        // the slider but dBm to the firmware.
         [['rxBandwidth', 'slidRxBandwidth'], ['deviation', 'slidDeviation'], ['txPower', 'slidTxPower']]
         .forEach(([k, id]) => {
             const el = get(id);
@@ -3286,8 +3279,7 @@ class Somfy {
             }
 
             if (valid) {
-                const cm = (get('divContainer').getAttribute('data-chipmodel') || "").toLowerCase(),
-                pm = this.pinMaps.find(x => x.name === cm) || { maxPins: 39 };
+                const pm = this.pinMaps.find(x => x.name === chipFamily()) || { maxPins: 39 };
 
                 try {
                     for (const k of pk) {
@@ -3347,7 +3339,7 @@ class Somfy {
             }
     }
     pinMaps = [
-        { name: '', maxPins: 39, inputs: [0, 1, 6, 7, 8, 9, 10, 11, 37, 38], outputs: [3, 6, 7, 8, 9, 10, 11, 34, 35, 36, 37, 38, 39] },
+        { name: 'esp32', maxPins: 39, inputs: [0, 1, 6, 7, 8, 9, 10, 11, 37, 38], outputs: [3, 6, 7, 8, 9, 10, 11, 34, 35, 36, 37, 38, 39] },
         { name: 's2', maxPins: 46, inputs: [0, 19, 20, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 45], outputs: [0, 19, 20, 26, 27, 28, 29, 30, 31, 32, 45, 46]},
         { name: 's3', maxPins: 48, inputs: [19, 20, 22, 23, 24, 25, 27, 28, 29, 30, 31, 32], outputs: [19, 20, 22, 23, 24, 25, 27, 28, 29, 30, 31, 32] },
         { name: 'c3', maxPins: 21, inputs: [11, 12, 13, 14, 15, 16, 17, 18, 19, 20], outputs: [11, 12, 13, 14, 15, 16, 17, 21] }
@@ -3357,11 +3349,7 @@ class Somfy {
         let currentVal = (typeof opt !== 'undefined') ? opt : parseInt(sel.value, 10);
         while (sel.firstChild) sel.removeChild(sel.firstChild);
 
-        let cm = get('divContainer').getAttribute('data-chipmodel');
-        let pm = this.pinMaps.find(x => x.name === cm);
-        if (!pm) {
-            pm = { name: '', maxPins: 39, inputs: [0, 1, 6, 7, 8, 9, 10, 11, 37, 38], outputs: [3, 6, 7, 8, 9, 10, 11, 34, 35, 36, 37, 38, 39] };
-        }
+        const pm = this.pinMaps.find(x => x.name === chipFamily()) || this.pinMaps[0];
 
         for (let i = 0; i <= pm.maxPins; i++) {
 
@@ -3374,11 +3362,11 @@ class Somfy {
             );
         }
         if (!isNaN(currentVal)) {
-            // Une broche deja configuree sur l'appareil doit rester affichable meme si la table
-            // ne la propose pas (brochage manuel hors liste, ou table generique servie par defaut
-            // faute de data-chipmodel) : sinon l'affectation echoue sans bruit, le select retombe
-            // sur sa premiere <option> et l'ecran annonce une broche que l'appareil n'utilise pas.
-            // Meme rattrapage que dans onRadioBoardTypeChanged() pour les presets de carte.
+            // A pin already configured on the device must stay displayable even when the table
+            // does not offer it (a manual pinout outside the list, or the generic table served by
+            // default for want of data-chipmodel): otherwise the assignment fails quietly, the
+            // select falls back to its first <option> and the screen announces a pin the device is
+            // not using. Same catch as in onRadioBoardTypeChanged() for the board presets.
             if (![...sel.options].some(o => parseInt(o.value, 10) === currentVal)) {
                 sel.options.add(new Option(`GPIO-${currentVal > 9 ? currentVal : '0' + currentVal}`, currentVal));
             }
@@ -4125,7 +4113,7 @@ class Somfy {
                 let room = _rooms.find(x => x.roomId === group.roomId) || { roomId: 0, name: '' };
                 // --- Section Configuration ---
                 divCfg += `<div class="somfyGroup group-draggable" draggable="true" data-roomid="${group.roomId}" data-groupid="${group.groupId}" data-remoteaddress="${group.remoteAddress}"><div class="drag-handle"><svg class="icon-svg"><use href=#svg-drag></use></svg></div> <div class="group-name"><div class="cfg-room">${room.name}</div><div class="name-text">${group.name}</div></div><div class="idRemoteAddress"><span class="AddrId-label">${tr("ID")}</span><span class="group-address">${group.remoteAddress}</span></div><span class="vr"></span><div class="divEditDelete-svg" onclick="somfy.openEditGroup(${group.groupId});"><svg class="icon-svg"><use href=#svg-edit></use></svg></div><div class="divEditDelete-svg" onclick="somfy.deleteGroup(${group.groupId});"><svg class="icon-svg" style="color: var(--danger-color, red);"><use href=#svg-close></use></svg></div></div>`;
-                // --- Section Contrôle (divCtl) ---
+                // --- Control section (divCtl) ---
                 divCtl += `<div class="somfyGroupCtl" style="${roomId === 0 || roomId === room.roomId ? '' : 'display:none'}" data-groupId="${group.groupId}" data-roomid="${group.roomId}" data-remoteaddress="${group.remoteAddress}">
                 <div class="group-name">
                 <span class="groupctl-room">${room.name}</span>
@@ -4816,8 +4804,8 @@ class Somfy {
             }
         }
     }
-    // Double le controle firmware (code -14) pour NOMMER le conflit. Domaine = adresses propres
-    // des equipements et des groupes, pas les linkedRemotes (ecoutees, pas emises).
+    // Doubles the firmware check (code -14) in order to NAME the conflict. Scope = the addresses
+    // owned by shades and groups, not the linkedRemotes (listened to, not transmitted).
     remoteAddressOwner(address, exceptShadeId, exceptGroupId) {
         const addr = Number(address);
         if (!addr) return null;
@@ -4842,7 +4830,7 @@ class Somfy {
 
         const basicError = checks.find(c => c[0]);
         if (basicError) return ui.errorMessage(settings, tr(basicError[1]));
-        // sId vaut NaN sur une creation : rien n'est ecarte du balayage, c'est voulu.
+        // sId is NaN when creating: nothing is excluded from the sweep, and that is intended.
         const addrOwner = this.remoteAddressOwner(obj.remoteAddress, sId, 255);
         if (addrOwner) return ui.errorMessage(settings, tr(addrOwner.isGroup ? 'ERR_REMOTE_ADDRESS_USED_GROUP' : 'ERR_REMOTE_ADDRESS_USED_DEVICE').replace('{name}', escHtml(addrOwner.name)));
         if (obj.proto === 8 || obj.proto === 9) {
@@ -5875,9 +5863,9 @@ class MQTT {
             else {
                 console.log(settings);
                 ui.toElement(get('divMQTT'), { mqtt: settings });
-                // /mqttsettings ne renvoie plus le mot de passe, seulement hasPassword : le champ
-                // reste vide et un champ vide signifie "inchange" cote firmware. On signale malgre
-                // tout qu'un mot de passe existe (cf. setSecurityConfig pour le meme procede).
+                // /mqttsettings no longer returns the password, only hasPassword: the field stays
+                // empty and an empty field means "unchanged" to the firmware. That a password exists
+                // is still signalled (see setSecurityConfig for the same approach).
                 const fldMq = get('fldMqttPassword');
                 if (fldMq && makeBool(settings.hasPassword)) fldMq.placeholder = '••••••••';
                 get('divDiscoveryTopic').style.display = settings.pubDisco ? '' : 'none';
@@ -5996,8 +5984,8 @@ class Firmware {
                 reject({ htmlError: status, service: 'GET /backup' });
             };
             xhr.open('GET', baseUrl.length > 0 ? `${baseUrl}/backup` : '/backup', true);
-            // /backup est une route Config : sans cet en-tete, telecharger une sauvegarde echouait en
-            // 401 des qu'une securite etait active. Les deux seuls XHR du fichier a l'avoir oublie.
+            // /backup is a Config route: without this header, downloading a backup failed with a
+            // 401 as soon as security was on. The only two XHRs in this file that had forgotten it.
             xhr.setRequestHeader('apikey', security.apiKey);
             xhr.send();
         });
@@ -6216,7 +6204,7 @@ class Firmware {
             }
         }
     }
-    // Extrait juste le premier nombre après le 'v' (ex: "v2.5.2" -> 2, "v3.0.0" -> 3, "3.1.2" -> 3)
+    // Extracts just the first number after the 'v' (e.g. "v2.5.2" -> 2, "v3.0.0" -> 3, "3.1.2" -> 3)
     getMainVersion(verStr) {
         if (!verStr) return 0;
         const match = verStr.match(/[vV]?(\d+)/);
@@ -6228,7 +6216,7 @@ class Firmware {
         const currentMajor = this.getMainVersion(document.getElementById('divGitInstall')?.getAttribute('data-currentver'));
         const targetMajor = this.getMainVersion(obj.version);
 
-        // Sécurité absolue contre le contournement HTML
+        // Hard stop against bypassing the HTML
         if ((currentMajor < 3 && targetMajor >= 3) || (currentMajor >= 3 && targetMajor < 3)) {
             ui.errorMessage(tr('MSG_ALERT')).querySelector('.sub-message').innerHTML = tr('ERR_GIT_PARTITION_BLOCKED');
             return;
@@ -6276,6 +6264,7 @@ class Firmware {
         getJSONSync('/getReleases', (err, rel) => {
             if (err) return ui.serviceError(err);
             const div = document.createElement('div'), isMob = this.isMobile();
+            // Raw, not chipFamily(): matched against the release asset names.
             const chip = (get('divContainer').getAttribute('data-chipmodel') || "").toLowerCase();
             div.id = 'divGitInstall';
             div.className = 'inst-overlay';
@@ -6548,7 +6537,7 @@ class Firmware {
 
         let xhr = new XMLHttpRequest();
         xhr.open('POST', baseUrl ? `${baseUrl}${service}` : service, true);
-        // Idem : televersement (restauration, pack de langue, firmware) sur des routes Config.
+        // Same here: uploads (restore, language pack, firmware) target Config routes.
         xhr.setRequestHeader('apikey', security.apiKey);
 
         xhr.upload.onprogress = (evt) => {
