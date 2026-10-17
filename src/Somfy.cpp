@@ -3151,8 +3151,8 @@ bool SomfyShade::usesPin(uint8_t pin) {
 }
 int8_t SomfyShade::validateJSON(JsonObject &obj) {
   int8_t ret = 0;
-  // Unicite de l'ID radio : processFrame() diffuse chaque trame a TOUS les equipements et chacun
-  // agit des que l'adresse correspond. Un doublon fait repondre les deux a la meme commande.
+  // Radio ID uniqueness: processFrame() broadcasts every frame to ALL shades and each one acts as
+  // soon as the address matches. A duplicate makes both respond to the same command.
   if(obj.containsKey("remoteAddress")) {
     uint32_t addr = obj["remoteAddress"].as<uint32_t>();
     if(somfy.isRemoteAddressInUse(addr, this->getShadeId(), 255)) return -14;
@@ -3188,8 +3188,8 @@ int8_t SomfyShade::validateJSON(JsonObject &obj) {
     }
   }
   if(obj.containsKey("proto")) {
-    // obj["proto"] et non this->proto, encore a l'ancienne valeur sur la requete qui bascule en
-    // relais : tout le controle ci-dessous etait saute exactement quand il sert.
+    // obj["proto"] and not this->proto, which still holds the old value on the request that
+    // switches to relay: the whole check below was skipped exactly when it matters.
     radio_proto proto = static_cast<radio_proto>(obj["proto"].as<uint8_t>());
     if(proto == radio_proto::GP_Relay || proto == radio_proto::GP_Remote) {
       // Check to see if we are using the up and or down
@@ -3202,8 +3202,8 @@ int8_t SomfyShade::validateJSON(JsonObject &obj) {
         && proto == radio_proto::GP_Remote)) upPin = myPin = 255;
       else if(type == shade_types::drycontact2) myPin = 255;
       if(proto == radio_proto::GP_Relay) myPin = 255;
-      // Validite INTRINSEQUE, avant toute collision : fromJSON enchaine sur pinMode() avec un
-      // numero venu du reseau, et ecrire sur 6-11 (flash SPI) fait redemarrer l'appareil.
+      // INTRINSIC validity, before any collision: fromJSON goes straight on to pinMode() with a
+      // number that came off the network, and writing to 6-11 (SPI flash) reboots the device.
       if((upPin != 255 && !isUsableOutputPin(upPin)) ||
         (downPin != 255 && !isUsableOutputPin(downPin)) ||
         (myPin != 255 && !isUsableOutputPin(myPin)))
@@ -3353,15 +3353,15 @@ void SomfyShade::toJSONRef(JsonResponse &json) {
   //SomfyRemote::toJSON(json);
 }
 
-// `secrets` a false retire du flux l'adresse de telecommande, le code tournant et la liste des
-// telecommandes liees. C'est le couple adresse/code qui permet de forger une trame RTS valide et donc
-// de piloter l'equipement par radio, sans jamais parler au boitier : il ne doit pas sortir sous la
-// seule autorisation "Control". La route elle-meme reste au niveau Control -- ce sont les SECRETS qui
-// montent d'un cran, pas l'acces -- sinon le mode "config seule", ou le garde passe sans cle, les
-// servirait a quiconque est sur le reseau local.
+// `secrets` set to false takes the remote address, the rolling code and the list of linked remotes
+// out of the stream. It is the address/code pair that allows a valid RTS frame to be forged, and
+// therefore the shade to be driven over the air without ever talking to the controller: it must not
+// go out under Control authorisation alone. The route itself stays at Control level -- it is the
+// SECRETS that move up a notch, not the access -- otherwise config-only mode, where the guard
+// passes without a key, would serve them to anyone on the local network.
 //
-// Les champs sont EMIS malgre tout, a 0 et en liste vide : les retirer changerait la forme du JSON et
-// casserait les clients qui lisent ces cles sans les tester.
+// The fields are EMITTED all the same, as 0 and an empty list: removing them would change the shape
+// of the JSON and break clients that read those keys without testing them.
 void SomfyShade::toJSON(JsonResponse &json, bool secrets) {
   json.addElem("shadeId", this->getShadeId());
   json.addElem("roomId", this->roomId);
@@ -3400,7 +3400,7 @@ void SomfyShade::toJSON(JsonResponse &json, bool secrets) {
   json.addElem("simMy", this->simMy());
   json.beginArray("linkedRemotes");
   for(uint8_t i = 0; i < SOMFY_MAX_LINKED_REMOTES; i++) {
-    if(!secrets) break;  // chaque entree EST une adresse de telecommande
+    if(!secrets) break;  // every entry IS a remote address
     SomfyLinkedRemote &lremote = this->linkedRemotes[i];
     if(lremote.getRemoteAddress() != 0) {
       json.beginObject();
@@ -3808,7 +3808,7 @@ SomfyShade *SomfyShadeController::addShade(JsonObject &obj, int8_t &err) {
   if(shade) {
     err = shade->fromJSON(obj);
     if(err != 0) {
-      // Le slot avait deja son id : le rendre, sinon un refus laisse un equipement a demi rempli.
+      // The slot already had its id: give it back, otherwise a refusal leaves a half-filled shade.
       shade->clear();
       this->isDirty = true;
       return nullptr;
@@ -4809,10 +4809,6 @@ bool Transceiver::end() {
     this->disableReceive();
     return true;
 }
-// UN SEUL point de decision pour les six broches, et il renvoie le CODE dont la phrase decoule.
-// L'ordre des tests compte : deux raisons peuvent s'appliquer a la fois -- sur ESP32, GPIO35 est
-// input-only ET au-dessus de 31 -- et le motif annonce doit rester le meme quel que soit
-// l'appelant. D'ou aussi la phrase construite ici, et nulle part ailleurs.
 const char *radioPinFault(int v, radio_pin_role role) {
   switch(role) {
     case radio_pin_role::tx_bitbang:
@@ -4834,12 +4830,12 @@ const char *radioPinFaultText(const char *code) {
 }
 void transceiver_config_t::fromJSON(JsonObject& obj) {
     //Serial.print("Deserialize Radio JSON ");
-    // Gardes en !isNull() et non en containsKey() : containsKey() est VRAI pour une clé portant un
-    // null explicite, et affecter ce null à un float ou un entier donne 0 en silence. C'est ainsi
-    // que rxBandwidth, deviation et txPower tombaient à 0 -- l'UI les tirait d'un <span> non
-    // peuplé (quand /controller échouait), ce qui produisait "rxBandwidth":null dans le payload.
-    // isNull() couvre les deux cas d'un coup, clé absente et null explicite, alors qu'une valeur
-    // légitime false ou 0 n'est PAS nulle et passe donc normalement.
+    // Guards on !isNull() and not on containsKey(): containsKey() is TRUE for a key carrying an
+    // explicit null, and assigning that null to a float or an integer silently yields 0. That is
+    // how rxBandwidth, deviation and txPower fell to 0 -- the UI read them from an unpopulated
+    // <span> (when /controller failed), which produced "rxBandwidth":null in the payload. isNull()
+    // covers both cases at once, missing key and explicit null, while a legitimate false or 0 is
+    // NOT null and passes normally.
     if(!obj["type"].isNull()) this->type = obj["type"];
     if(!obj["CSNPin"].isNull()) this->CSNPin = obj["CSNPin"];
     if(!obj["MISOPin"].isNull()) this->MISOPin = obj["MISOPin"];
@@ -5114,7 +5110,7 @@ void transceiver_config_t::apply() {
                                                                 // 1 = Synchronous serial mode, Data in on GDO0 and data out on either of the GDOx pins. 
                                                                 // 2 = Random TX mode; sends random data using PN9 generator. Used for test. Works as normal mode, setting 0 (00), in RX. 
                                                                 // 3 = Asynchronous serial mode, Data in on GDO0 and data out on either of the GDOx pins.
-      ELECHOUSE_cc1101.setDcFilterOff(0);                       // Disable digital DC blocking filter before demodulator. Only for data rates â‰¤ 250 kBaud The recommended IF frequency changes when the DC blocking is disabled. 
+      ELECHOUSE_cc1101.setDcFilterOff(0);                       // Disable digital DC blocking filter before demodulator. Only for data rates <= 250 kBaud The recommended IF frequency changes when the DC blocking is disabled. 
                                                                 // 1 = Disable (current optimized). 
                                                                 // 0 = Enable (better sensitivity).
       ELECHOUSE_cc1101.setCrc(0);                               // 1 = CRC calculation in TX and CRC check in RX enabled. 0 = CRC disabled for TX and RX.
@@ -5168,11 +5164,11 @@ void transceiver_config_t::apply() {
     ELECHOUSE_cc1101.setPacketLength(this->pktLength);        // Indicates the packet length when fixed packet length mode is enabled. If variable packet length mode is used, this value indicates the maximum packet length allowed.
     ELECHOUSE_cc1101.setCrc(this->useCRC);                    // 1 = CRC calculation in TX and CRC check in RX enabled. 0 = CRC disabled for TX and RX.
     ELECHOUSE_cc1101.setCRC_AF(this->autoFlushCRC);           // Enable automatic flush of RX FIFO when CRC is not OK. This requires that only one packet is in the RXIFIFO and that packet length is limited to the RX FIFO size.
-    ELECHOUSE_cc1101.setDcFilterOff(this->disableDCFilter);   // Disable digital DC blocking filter before demodulator. Only for data rates â‰¤ 250 kBaud The recommended IF frequency changes when the DC blocking is disabled. 1 = Disable (current optimized). 0 = Enable (better sensitivity).
+    ELECHOUSE_cc1101.setDcFilterOff(this->disableDCFilter);   // Disable digital DC blocking filter before demodulator. Only for data rates <= 250 kBaud The recommended IF frequency changes when the DC blocking is disabled. 1 = Disable (current optimized). 0 = Enable (better sensitivity).
     ELECHOUSE_cc1101.setManchester(this->enableManchester);   // Enables Manchester encoding/decoding. 0 = Disable. 1 = Enable.
     ELECHOUSE_cc1101.setFEC(this->enableFEC);                 // Enable Forward Error Correction (FEC) with interleaving for packet payload (Only supported for fixed packet length mode. 0 = Disable. 1 = Enable.
     ELECHOUSE_cc1101.setPRE(this->minPreambleBytes);          // Sets the minimum number of preamble bytes to be transmitted. Values: 0 : 2, 1 : 3, 2 : 4, 3 : 6, 4 : 8, 5 : 12, 6 : 16, 7 : 24
-    ELECHOUSE_cc1101.setPQT(this->pqtThreshold);              // Preamble quality estimator threshold. The preamble quality estimator increases an internal counter by one each time a bit is received that is different from the previous bit, and decreases the counter by 8 each time a bit is received that is the same as the last bit. A threshold of 4âˆ™PQT for this counter is used to gate sync word detection. When PQT=0 a sync word is always accepted.
+    ELECHOUSE_cc1101.setPQT(this->pqtThreshold);              // Preamble quality estimator threshold. The preamble quality estimator increases an internal counter by one each time a bit is received that is different from the previous bit, and decreases the counter by 8 each time a bit is received that is the same as the last bit. A threshold of 4*PQT for this counter is used to gate sync word detection. When PQT=0 a sync word is always accepted.
     ELECHOUSE_cc1101.setAppendStatus(this->appendStatus);     // When enabled, two status bytes will be appended to the payload of the packet. The status bytes contain RSSI and LQI values, as well as CRC OK.
     */
     //somfy.transceiver.printBuffer = this->printBuffer;

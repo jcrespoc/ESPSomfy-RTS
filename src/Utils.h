@@ -9,14 +9,8 @@
 
 
 [[maybe_unused]] static void SETCHARPROP(char *prop, const char *value, size_t size) {strncpy(prop, value, size); prop[size - 1] = '\0';}
-// Le SDK tient le flash SPI interne et la PSRAM pour des broches valides, alors qu'y ecrire fait
-// planter l'appareil sur-le-champ. Ces exclusions ne dependent pas du ROLE de la broche, d'ou le
-// test commun aux deux fonctions ci-dessous :
-//   - ESP32 classique : 6-11 (flash), plus 16/17 sur les modules WROVER. Test a l'execution et
-//     non a la compilation : le meme binaire esp32 tourne sur WROOM et sur WROVER ;
-//   - ESP32-S3 : 26-32 (bus de la flash SPI). Les 33-37 de la PSRAM octale ne sont PAS exclues --
-//     elles sont libres sur un module a PSRAM quad, et rien ne distingue les deux a l'execution.
-// Disponibilite (broche deja prise par un autre organe) : affaire des usesPin().
+// The SDK treats the internal SPI flash (6-11, and 26-32 on S3) and the PSRAM of WROVER modules
+// (16/17) as valid pins, although writing to them crashes the device. Availability: usesPin().
 [[maybe_unused]] static bool isDestructivePin(int pin) {
 #if CONFIG_IDF_TARGET_ESP32
   if(pin >= 6 && pin <= 11) return true;
@@ -31,11 +25,7 @@
   if(!GPIO_IS_VALID_OUTPUT_GPIO(pin)) return false;
   return !isDestructivePin(pin);
 }
-// Pendant du precedent pour une broche qu'on ne fait que LIRE. Sur ESP32 classique, 34 a 39 sont
-// input-only : GPIO_IS_VALID_OUTPUT_GPIO les refuse alors qu'elles conviennent parfaitement en
-// entree. Sans cette seconde fonction, un controle unique bati sur la sortie refuserait les RX de
-// cinq cartes predefinies (WT32-ETH01 sur 35, Olimex sur 36, LilyGO sur 35, wESP sur 39,
-// ESP-PoE-32 sur 35) -- des brochages d'usine, parfaitement corrects.
+// For a pin that is only READ: 34-39 are input-only on the plain ESP32.
 [[maybe_unused]] static bool isUsableInputPin(int pin) {
   if(pin < 0 || pin > 48) return false;
   if(!GPIO_IS_VALID_GPIO(pin)) return false;
