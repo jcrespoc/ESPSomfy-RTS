@@ -239,9 +239,9 @@ class SomfyRemote {
     uint8_t repeats = 1;
     virtual bool isLastCommand(somfy_commands cmd);
     char *getRemotePrefId() {return m_remotePrefId;}
-    // `secrets` : voir SomfyShade::toJSON (Somfy.cpp). A false, l'adresse de telecommande et le code
-    // tournant sortent a 0 et la liste des telecommandes liees sort vide. Le defaut reste true, donc
-    // tout appelant non modifie garde le comportement d'origine.
+    // `secrets`: see SomfyShade::toJSON (Somfy.cpp). When false, the remote address and the
+    // rolling code go out as 0 and the list of linked remotes goes out empty. The default stays
+    // true, so any unmodified caller keeps the original behaviour.
     virtual void toJSON(JsonResponse &json, bool secrets = true);
     virtual void setRemoteAddress(uint32_t address);
     virtual uint32_t getRemoteAddress();
@@ -421,20 +421,9 @@ class SomfyGroup : public SomfyRemote {
     bool publish(const char *topic, uint16_t val, bool retain = false);
     bool publish(const char *topic, bool val, bool retain = false);
 };
-// Le ROLE d'une broche radio commande ce qu'on peut lui demander, et c'est pourquoi le controle
-// n'est pas unique : un seul test bati sur la sortie refuserait les RX d'usine de cinq cartes
-// predefinies, tout en laissant passer un TX impossible.
-//   - TX est bit-bangee par `1 << TXPin` dans GPIO_OUT_W1TS_REG (cf. Transceiver::sendFrame) : ce
-//     registre n'adresse que GPIO 0-31. Au-dela, le decalage est un comportement indefini -- en
-//     pratique pris modulo 32 -- donc la trame part sur une AUTRE broche, sans un mot. Elle doit
-//     etre une sortie ET tenir dans 0-31 ;
-//   - SCK, MOSI et CSN passent par ELECHOUSE_cc1101.setSpiPin() : sorties, sans aucun plafond ;
-//   - MISO et RX ne sont que LUES (setSpiPin pour l'une, pinMode(INPUT) + attachInterrupt pour
-//     l'autre) : les broches input-only 34-39 leur conviennent.
+// tx_bitbang must be an output and fit in 0-31: sendFrame() shifts it into GPIO_OUT_W1TS_REG.
 enum class radio_pin_role : uint8_t { tx_bitbang, spi_out, spi_in };
-// Renvoie nullptr si la broche convient au role, sinon un CODE stable que l'interface pourra
-// traduire. radioPinFaultText() en donne la phrase anglaise, qui part dans le champ `desc` de la
-// reponse 400 et sert de repli lisible tant que la cle de dictionnaire n'existe pas.
+// nullptr when the pin suits the role, otherwise a stable code.
 const char *radioPinFault(int pin, radio_pin_role role);
 const char *radioPinFaultText(const char *code);
 struct transceiver_config_t {
@@ -557,14 +546,14 @@ class SomfyShadeController {
     int8_t getMaxShadeOrder();
     int8_t getMaxGroupOrder();
     uint32_t getNextRemoteAddress(uint8_t shadeId);
-    // Equipements ET groupes, meme domaine que getNextRemoteAddress(). 255 = pas de ce type.
+    // Shades AND groups, same scope as getNextRemoteAddress(). 255 = none of that type.
     bool isRemoteAddressInUse(uint32_t address, uint8_t exceptShadeId, uint8_t exceptGroupId);
     SomfyShadeController();
     Transceiver transceiver;
     SomfyRoom *addRoom();
     SomfyRoom *addRoom(JsonObject &obj);
     SomfyShade *addShade();
-    // Ces surcharges jetaient le retour de fromJSON() : rien n'etait valide a la creation.
+    // These overloads threw away the return of fromJSON(): nothing was validated on creation.
     SomfyShade *addShade(JsonObject &obj, int8_t &err);
     SomfyGroup *addGroup();
     SomfyGroup *addGroup(JsonObject &obj, int8_t &err);
