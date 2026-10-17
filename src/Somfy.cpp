@@ -1467,13 +1467,13 @@ void SomfyShade::publishState() {
 }
 // Clears the discovery topic used before the server id was part of it. The stale record
 // keeps the same unique_id as the new one, so Home Assistant ignores the new discovery.
-static void unpublishLegacyDisco(uint8_t shadeId) {
-  char topic[128] = "";
-  snprintf(topic, sizeof(topic), "%s/cover/%d/config", settings.MQTT.discoTopic, shadeId);
-  mqtt.unpublishDisco(topic);
-  snprintf(topic, sizeof(topic), "%s/switch/%d/config", settings.MQTT.discoTopic, shadeId);
-  mqtt.unpublishDisco(topic);
-}
+//static void unpublishLegacyDisco(uint8_t shadeId) {
+//  char topic[128] = "";
+//  snprintf(topic, sizeof(topic), "%s/cover/%d/config", settings.MQTT.discoTopic, shadeId);
+//  mqtt.unpublishDisco(topic);
+//  snprintf(topic, sizeof(topic), "%s/switch/%d/config", settings.MQTT.discoTopic, shadeId);
+//  mqtt.unpublishDisco(topic);
+//}
 void SomfyShade::publishDisco() {
   if(!mqtt.connected() || !settings.MQTT.pubDisco) return;
   char topic[128] = "";
@@ -1598,7 +1598,7 @@ void SomfyShade::publishDisco() {
   }
   
   obj["enabled_by_default"] = true;
-  unpublishLegacyDisco(this->shadeId);
+  //unpublishLegacyDisco(this->shadeId);
   mqtt.publishDisco(topic, obj, true);  
 }
 void SomfyShade::unpublishDisco() {
@@ -1610,7 +1610,7 @@ void SomfyShade::unpublishDisco() {
   else
     snprintf(topic, sizeof(topic), "%s/switch/%s/%d/config", settings.MQTT.discoTopic, settings.serverId, this->shadeId);
   mqtt.unpublishDisco(topic);
-  unpublishLegacyDisco(this->shadeId);
+  //unpublishLegacyDisco(this->shadeId);
 }
 void SomfyShade::publish() {
   if(mqtt.connected()) {
@@ -1681,7 +1681,7 @@ void SomfyShade::unpublish(uint8_t id) {
       mqtt.unpublishDisco(topic);
       snprintf(topic, sizeof(topic), "%s/switch/%s/%d/config", settings.MQTT.discoTopic, settings.serverId, id);
       mqtt.unpublishDisco(topic);
-      unpublishLegacyDisco(id);
+      //unpublishLegacyDisco(id);
     }
   }
 }
@@ -3631,6 +3631,8 @@ void SomfyShadeController::publish() {
   }
   strcat(arrIds, "]");
   mqtt.publish("shades", arrIds, true);
+  // Replaced by MQTTPurgeManager
+  /*
   for(uint8_t i = 1; i <= SOMFY_MAX_SHADES; i++) {
     SomfyShade *shade = this->getShadeById(i);
     if(shade) continue;
@@ -3638,6 +3640,7 @@ void SomfyShadeController::publish() {
       SomfyShade::unpublish(i);
     }
   }
+  */
   strcpy(arrIds, "[");
   for(uint8_t i = 0; i < SOMFY_MAX_GROUPS; i++) {
     SomfyGroup *group = &this->groups[i];
@@ -3648,11 +3651,14 @@ void SomfyShadeController::publish() {
   }
   strcat(arrIds, "]");
   mqtt.publish("groups", arrIds, true);
+  // Replaced by MQTTPurgeManager
+  /*
   for(uint8_t i = 1; i <= SOMFY_MAX_GROUPS; i++) {
     SomfyGroup *group = this->getGroupById(i);
     if(group) continue;
     else SomfyGroup::unpublish(i);
   }
+  */
 }
 uint8_t SomfyShadeController::getNextShadeId() {
   // There is no shortcut for this since the deletion of

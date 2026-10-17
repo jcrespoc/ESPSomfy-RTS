@@ -7,6 +7,7 @@
 #include "Somfy.h"
 #include "Network.h"
 #include "Utils.h"
+#include "MQTTPurger.h"
 
 WiFiClient tcpClient;
 PubSubClient mqttClient(tcpClient);
@@ -36,12 +37,19 @@ bool MQTTClass::loop() {
     if(net.connected()) this->connect();
   }
   esp_task_wdt_reset();
-  if(settings.MQTT.enabled) mqttClient.loop();
+  if(settings.MQTT.enabled) {
+    mqttClient.loop();
+    mqttPurge.loop(mqttClient);
+  }
   return true;
 }
 
 void MQTTClass::receive(const char *topic, byte* payload, uint32_t length) {
   esp_task_wdt_reset();
+
+  if(mqttPurge.isCollecting()) {
+    mqttPurge.onMessageReceived(topic, payload, length);
+  }
 
   uint16_t len = strlen(topic);
   uint16_t ndx = len - 1;
@@ -144,28 +152,61 @@ bool MQTTClass::connect() {
 
     mqttClient.setCallback(MQTTClass::receive);
     this->lastConnect = millis();
+
+    // Configure reactive purge rules
+    mqttPurge.clearRules();
+    char buf[160];
+    const char* root = settings.MQTT.rootTopic[0] != '\0' ? settings.MQTT.rootTopic : "espsomfy";
+    const char* disco = settings.MQTT.discoTopic[0] != '\0' ? settings.MQTT.discoTopic : "homeassistant";
+
+    // 1. v2.5.2 bug (Discovery inside rootTopic)
+    snprintf(buf, sizeof(buf), "%s/homeassistant/#", root);
+    mqttPurge.addRule(buf, [](const char*, const byte*, size_t) { return true; }, "v2.5.2 bug");
+
+    // 2. Legacy cover discovery (Disambiguation)
+    snprintf(buf, sizeof(buf), "%s/cover/+/config", disco);
+    mqttPurge.addRule(buf, [](const char*, const byte* payload, size_t length) {
+      if (!payload || length == 0 || settings.serverId[0] == '\0') return false;
+      return (memmem(payload, length, settings.serverId, strlen(settings.serverId)) != nullptr);
+    }, "Legacy cover discovery");
+
+    // 3. Legacy switch discovery (Disambiguation)
+    snprintf(buf, sizeof(buf), "%s/switch/+/config", disco);
+    mqttPurge.addRule(buf, [](const char*, const byte* payload, size_t length) {
+      if (!payload || length == 0 || settings.serverId[0] == '\0') return false;
+      return (memmem(payload, length, settings.serverId, strlen(settings.serverId)) != nullptr);
+    }, "Legacy switch discovery");
+
+    // 4. Orphan actual discovery with serverId
+    snprintf(buf, sizeof(buf), "%s/+/%s/+/config", disco, settings.serverId);
+    mqttPurge.addRule(buf, [](const char* topic, const byte*, size_t) {
+      int shadeId = PurgeHelper::extractIdFromSubtopic(topic);
+      return (somfy.getShadeById((uint8_t)shadeId) == nullptr);
+    }, "Orphan actual discovery");
+
+    // 5. Orphan / deleted shades
+    snprintf(buf, sizeof(buf), "%s/shades/+/+", root);
+    mqttPurge.addRule(buf, [](const char* topic, const byte*, size_t) {
+      int shadeId = PurgeHelper::extractIdFromSubtopic(topic);
+      return (somfy.getShadeById((uint8_t)shadeId) == nullptr);
+    }, "Orphan / deleted shades");
+
+    // 6. Orphan / deleted groups
+    snprintf(buf, sizeof(buf), "%s/groups/+/+", root);
+    mqttPurge.addRule(buf, [](const char* topic, const byte*, size_t) {
+      int groupId = PurgeHelper::extractIdFromSubtopic(topic);
+      return (somfy.getGroupById((uint8_t)groupId) == nullptr);
+    }, "Orphan / deleted groups");
+
+    mqttPurge.start();
     return true;
   }
+  this->lastConnect = millis();
   return false;
 }
 
 bool MQTTClass::disconnect() {
   if(mqttClient.connected()) {
-    this->unsubscribe("shades/+/target/set");
-    this->unsubscribe("shades/+/direction/set");
-    this->unsubscribe("shades/+/tiltTarget/set");
-    this->unsubscribe("shades/+/mypos/set");
-    this->unsubscribe("shades/+/myTiltPos/set");
-    this->unsubscribe("shades/+/sunFlag/set");
-    this->unsubscribe("groups/+/direction/set");
-    this->unsubscribe("shades/+/sunny/set");
-    this->unsubscribe("shades/+/windy/set");
-    this->unsubscribe("shades/+/position/set");
-    this->unsubscribe("shades/+/tiltPosition/set");
-    this->unsubscribe("groups/+/direction/set");
-    this->unsubscribe("groups/+/sunFlag/set");
-    this->unsubscribe("groups/+/sunny/set");
-    this->unsubscribe("groups/+/windy/set");
     mqttClient.disconnect();
   }
   return true;
@@ -210,19 +251,13 @@ bool MQTTClass::publishBuffer(const char *topic, uint8_t *data, uint16_t len, bo
 
 bool MQTTClass::publishDisco(const char *topic, JsonObject &obj, bool retain) {
   serializeJson(obj, g_content, sizeof(g_content));
-  bool ok = this->publishBuffer(topic, (uint8_t *)g_content, strlen(g_content), retain, true);
-  if(mqttClient.connected() && settings.MQTT.rootTopic[0] != '\0')
-    mqttClient.publish(makeTopic(topic), (const uint8_t *)"", 0, true);
-  return ok;
+  return this->publishBuffer(topic, (uint8_t *)g_content, strlen(g_content), retain, true);
 }
 
 bool MQTTClass::unpublishDisco(const char *topic) {
   if(!mqttClient.connected()) return false;
   esp_task_wdt_reset();
-  bool ok = mqttClient.publish(topic, (const uint8_t *)"", 0, true);
-  if(settings.MQTT.rootTopic[0] != '\0')
-    mqttClient.publish(makeTopic(topic), (const uint8_t *)"", 0, true);
-  return ok;
+  return mqttClient.publish(topic, (const uint8_t *)"", 0, true);
 }
 
 bool MQTTClass::connected() { return settings.MQTT.enabled && mqttClient.connected(); }
