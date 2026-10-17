@@ -47,10 +47,8 @@
 #define WSLOG 3
 
 void LoggerInit();
-#ifdef ELOG_WEB_INTEGRATION
 class LogSettings;
 void applyLogSettings(const LogSettings& cfg);
-#endif
 
 template <typename Fmt, typename... Args>
 inline void logRoute(uint8_t level, Fmt format, Args... args) {
