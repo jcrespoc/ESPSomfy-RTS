@@ -726,7 +726,7 @@ bool ShadeConfigFile::readSettingsRecord() {
     if(this->header.version >= 25) {
       settings.language = this->readUInt8(0);
     } else {
-      settings.language = 0; // Anglais par défaut pour les versions antérieures
+      settings.language = 0; // English by default for earlier versions
     }
     if(this->file.position() != startPos + this->header.settingsRecordSize) {
       Serial.println("Reading to end of settings record");

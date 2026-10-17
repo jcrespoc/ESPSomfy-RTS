@@ -39,37 +39,37 @@ static const char _encoding_html[] = "text/html";
 static const char _encoding_json[] = "application/json";
 
 
-// Politique d'acces appliquee a CHAQUE route enregistree sur les deux serveurs HTTP.
-//  Public  : joignable sans identifiants -- ressources de l'interface, login, langue.
-//  Control : etat et commandes des equipements ; ouvert quand la securite est en "config seule".
-//  Config  : tout le reste -- reglages, securite, firmware, sauvegarde, redemarrage...
+// Access policy applied to EVERY route registered on both HTTP servers.
+//  Public  : reachable with no credentials -- UI assets, login, language.
+//  Control : shade state and commands; open when security is set to config-only.
+//  Config  : everything else -- settings, security, firmware, backup, reboot...
 //
-// TOUTE route absente des deux listes est Config, donc protegee. C'est la seule polarite tenable :
-// l'ancien code reposait sur un appel explicite a isAuthenticated() dans chaque handler, et comme
-// cet appel n'a jamais ete ecrit nulle part, l'API entiere etait ouverte. Avec un defaut ferme, une
-// route ajoutee demain est protegee sans que personne n'ait a y penser.
+// ANY route absent from both lists is Config, therefore protected. That is the only tenable
+// polarity: the old code relied on an explicit isAuthenticated() call inside each handler, and
+// since that call was never written anywhere, the whole API was open. With a closed default, a
+// route added tomorrow is protected without anyone having to think about it.
 //
-// /discovery est Control et NON Public : elle sert la configuration complete, chaque equipement
-// passant par SomfyShade::toJSON() qui inclut remoteAddress ET lastRollingCode -- exactement le
-// couple necessaire pour forger une trame RTS valide et piloter les equipements par radio, en
-// contournant integralement le PIN. Le couple lui-meme est en outre masque sauf authentification
-// de niveau Config (cf. SomfyShade::toJSON), car en mode "config seule" cette route repond sans
-// cle : l'authentification seule n'y protege donc rien, le masquage si.
-// ControlRead : lecture au niveau Control, ECRITURE au niveau Config. /room, /shade et /group
-// servent les deux sur la meme URI -- un GET lit un element, un PUT/POST appelle fromJSON() puis
-// save(), c'est-a-dire une reecriture complete de la configuration de l'element (adresse de
-// telecommande et code tournant compris). Les classer Control a plat aurait laisse ces ecritures
-// ouvertes a tout le reseau local en mode "config seule" : la lecture et l'ecriture doivent donc
-// etre dissociees, exactement comme le fait la ligne 3.x.
+// /discovery is Control and NOT Public: it serves the full configuration, every shade going
+// through SomfyShade::toJSON(), which includes remoteAddress AND lastRollingCode -- exactly the
+// pair needed to forge a valid RTS frame and drive the shades over the air, bypassing the PIN
+// entirely. The pair itself is masked unless authentication reaches Config level (see
+// SomfyShade::toJSON), because in config-only mode this route answers without a key:
+// authentication alone protects nothing here, masking does.
+// ControlRead: reading at Control level, WRITING at Config level. /room, /shade and /group serve
+// both on the same URI -- a GET reads an item, a PUT/POST calls fromJSON() then save(), that is a
+// full rewrite of the item's configuration (remote address and rolling code included). Classing
+// them Control across the board would have left those writes open to the whole local network in
+// config-only mode: reading and writing must therefore be separated, exactly as the 3.x line
+// does.
 enum class route_access : uint8_t { Public, Control, ControlRead, Config };
 static route_access routeAccess(const char *uri) {
   static const char *pub[] = { "/", "/login", "/loginContext", "/lang", "/upnp.xml",
     "/index.js", "/base.css", "/main.css", "/overlays.css", "/favicon.svg", "/editionWifi.webp", "/editionEthernet.webp" };
-  // /modulesettings est ici et non en Config : le tableau de bord en a besoin pour s'afficher
-  // (version, modele de puce, et l'attribut data-chipmodel dont depend la table de broches), et son
-  // contenu n'a rien de sensible -- nom d'hote, modele, langue, couleur d'accent, NTP.
-  // /setLang ECRIT la langue de l'appareil : rien de sensible, mais pas une route anonyme pour
-  // autant, d'ou Control et non Public.
+  // /modulesettings is here rather than in Config: the dashboard needs it to render (version,
+  // chip model, and the data-chipmodel attribute the pin table depends on), and nothing in it is
+  // sensitive -- hostname, model, language, accent colour, NTP.
+  // /setLang WRITES the device language: nothing sensitive, but not an anonymous route either,
+  // hence Control and not Public.
   static const char *ctl[] = { "/controller", "/rooms", "/shades", "/groups", "/discovery",
     "/shadeCommand", "/groupCommand", "/tiltCommand", "/repeatCommand", "/setPositions", "/setSensor",
     "/modulesettings", "/setLang" };
@@ -85,14 +85,13 @@ static bool routeNeedsConfig(route_access access, HTTPMethod method) {
   if(access == route_access::ControlRead) return method != HTTP_GET;
   return false;
 }
-// WebServer qui applique la politique ci-dessus a chaque handler qu'il enregistre.
+// A WebServer that applies the policy above to every handler it registers.
 //
-// ATTENTION : WebServer::on() n'est PAS virtuelle. Ce masquage ne fonctionne que parce que les deux
-// instances ci-dessous sont declarees de type SecuredWebServer et que TOUS les enregistrements de
-// routes vivent dans ce fichier. Declarer un jour `extern WebServer server;` dans un en-tete, ou
-// enregistrer une route via une reference WebServer&, desactiverait silencieusement le garde sans
-// la moindre erreur de compilation. Si ce besoin apparait, passer par une methode nommee
-// explicitement (onSecured) plutot que par un masquage.
+// CAREFUL: WebServer::on() is NOT virtual. This hiding only works because the two instances below
+// are declared as SecuredWebServer and because ALL route registrations live in this file.
+// Declaring `extern WebServer server;` in a header one day, or registering a route through a
+// WebServer& reference, would silently disable the guard without a single compiler error. Should
+// that need arise, go through an explicitly named method (onSecured) rather than through hiding.
 class SecuredWebServer : public WebServer {
   public:
     SecuredWebServer(uint16_t port) : WebServer(port) {}
@@ -106,8 +105,8 @@ class SecuredWebServer : public WebServer {
       route_access access = routeAccess(uri);
       if(access == route_access::Public) return fn;
       return [this, access, fn]() {
-        // Les preflight CORS passent : ils ne portent ni identifiants ni donnees, et les refuser
-        // empecherait le navigateur d'emettre la vraie requete, authentifiee celle-la.
+        // CORS preflights pass: they carry neither credentials nor data, and refusing them would
+        // stop the browser from issuing the real request, which is the authenticated one.
         if(this->method() != HTTP_OPTIONS && !webServer.checkAuth(*this, routeNeedsConfig(access, this->method()))) {
           this->send(401, _encoding_text, F("Unauthorized API Key"));
           return;
@@ -115,23 +114,22 @@ class SecuredWebServer : public WebServer {
         fn();
       };
     }
-    // Le callback d'upload tourne PENDANT la reception du corps, avant le handler principal : il
-    // doit n'ecrire nulle part pour un client non authentifie. On le saute donc, et le handler
-    // principal repond le 401.
+    // The upload callback runs WHILE the body is being received, before the main handler: it must
+    // write nowhere for an unauthenticated client. It is therefore skipped, and the main handler
+    // answers the 401.
     //
-    // On memorise le verdict au premier fragment au lieu de le recalculer a chaque appel : ce
-    // callback est invoque pour START puis pour CHAQUE fragment du corps, et checkAuth() fait un
-    // HMAC complet (allocation mbedtls) a chaque fois. Sur un televersement de firmware de 1,5 Mo
-    // cela represente des centaines d'allocations dans le chemin chaud, sur l'appareil dont le tas
-    // est deja le goulot connu.
+    // The verdict is remembered on the first chunk instead of recomputed on every call: this
+    // callback is invoked for START and then for EVERY chunk of the body, and checkAuth() does a
+    // full HMAC (an mbedtls allocation) each time. On a 1.5 MB firmware upload that is hundreds of
+    // allocations in the hot path, on the device whose heap is the known bottleneck.
     THandlerFunction guardUpload(const char *uri, THandlerFunction ufn) {
       route_access access = routeAccess(uri);
       if(access == route_access::Public) return ufn;
-      // Un seul verdict partage par route, et non par requete : c'est volontaire et sans risque ici,
-      // le serveur est synchrone et ne traite qu'une requete a la fois (handleClient() depuis la
-      // boucle Arduino). Il est reevalue a chaque UPLOAD_FILE_START, c'est-a-dire au premier appel de
-      // chaque televersement -- l'API WebServer garantit cet ordre START / WRITE... / END.
-      auto authed = std::make_shared<int8_t>(-1);  // -1 = pas encore evalue, 0 = refuse, 1 = admis
+      // One verdict shared per route rather than per request: deliberate and harmless here, the
+      // server is synchronous and handles one request at a time (handleClient() from the Arduino
+      // loop). It is re-evaluated on every UPLOAD_FILE_START, that is on the first call of each
+      // upload -- the WebServer API guarantees the START / WRITE... / END order.
+      auto authed = std::make_shared<int8_t>(-1);  // -1 = not evaluated yet, 0 = refused, 1 = admitted
       return [this, access, ufn, authed]() {
         HTTPUpload &up = this->upload();
         if(up.status == UPLOAD_FILE_START || *authed < 0)
@@ -186,23 +184,23 @@ void Web::handleDeserializationError(WebServer &server, DeserializationError &er
       break;
     }
 }
-// Rend le verdict SANS repondre. Deux appelants en ont besoin sous cette forme : le garde de
-// SecuredWebServer, qui emet lui-meme son 401, et les handlers qui s'en servent pour decider s'ils
-// peuvent inclure des secrets dans une reponse qu'ils vont envoyer de toute facon (cf. l'argument
-// `secrets` de SomfyShade::toJSON). Une variante qui repondrait elle-meme enverrait, dans ce second
-// cas, un 401 suivi de la vraie reponse -- deux reponses pour une seule requete.
+// Returns the verdict WITHOUT answering. Two callers need it in this form: the SecuredWebServer
+// guard, which sends its own 401, and the handlers that use it to decide whether they may include
+// secrets in a response they are going to send anyway (see the `secrets` argument of
+// SomfyShade::toJSON). A variant that answered by itself would, in that second case, send a 401
+// followed by the real response -- two responses for one request.
 bool Web::checkAuth(WebServer &server, bool cfg) {
   if(settings.Security.type == security_types::None) return true;
   if(!cfg && (settings.Security.permissions & static_cast<uint8_t>(security_permissions::ConfigOnly)) == 0x01) return true;
   if(!server.hasHeader("apikey")) return false;
   char token[65];
   memset(token, 0x00, sizeof(token));
-  // Resultat de createAPIToken() verifie et jeton vide refuse : le calcul peut echouer proprement
-  // quand le tas ne permet plus d'allouer le contexte HMAC, et laisse alors `token` vide. Sans ces
-  // deux gardes, la comparaison opposerait une chaine vide a l'en-tete recu -- or l'interface
-  // envoie litteralement `apikey:` (vide) tant qu'aucune session n'est ouverte. Une penurie de
-  // memoire ouvrirait donc l'API a tout client non authentifie, exactement au moment ou l'appareil
-  // est le plus fragile.
+  // The result of createAPIToken() is checked and an empty token refused: the computation can fail
+  // cleanly when the heap can no longer allocate the HMAC context, leaving `token` empty. Without
+  // these two guards the comparison would pit an empty string against the header received -- and
+  // the UI literally sends `apikey:` (empty) as long as no session is open. A memory shortage would
+  // therefore open the API to every unauthenticated client, at exactly the moment the device is at
+  // its most fragile.
   if(!this->createAPIToken(server.client().remoteIP(), token)) return false;
   if(token[0] == '\0') return false;
   String supplied = server.header("apikey");
@@ -211,36 +209,35 @@ bool Web::checkAuth(WebServer &server, bool cfg) {
   for(size_t i = 0; i < supplied.length(); i++) diff |= (uint8_t)supplied[i] ^ (uint8_t)token[i];
   return diff == 0;
 }
-// Variante qui repond le 401 elle-meme, pour un handler qui veut sortir immediatement.
+// The variant that answers the 401 itself, for a handler that wants to return immediately.
 bool Web::isAuthenticated(WebServer &server, bool cfg) {
   if(this->checkAuth(server, cfg)) return true;
   server.send(401, _encoding_text, F("Unauthorized API Key"));
   return false;
 }
-// ANTI FORCE BRUTE SUR /login.
+// BRUTE-FORCE PROTECTION ON /login.
 //
-// Sans cela, un PIN a 4 chiffres se parcourt entierement en 10 000 requetes, sans aucune limite de
-// debit : le controle d'acces ajoute par ailleurs ne vaut alors que le temps de ce parcours.
-// Verrouillage PAR ADRESSE IP, quota d'essais libres puis doublement du repli, plafonne.
+// Without it a 4-digit PIN is walked through in full in 10,000 requests, with no rate limit at all:
+// the access control added elsewhere is then worth only the time that walk takes. Lockout PER IP
+// ADDRESS, a quota of free attempts, then a doubling backoff, capped.
 //
-// POURQUOI PAR IP ET PAS GLOBALEMENT : un compteur global permettrait a n'importe qui sur le reseau
-// d'enfermer le proprietaire dehors en echouant volontairement. Le defaut connu de l'approche par IP
-// -- un attaquant qui change d'adresse repart a zero -- est le moindre mal, et il ne supprime pas le
-// cout: il faut une adresse nouvelle a chaque palier.
+// WHY PER IP AND NOT GLOBALLY: a global counter would let anyone on the network lock the owner out
+// by failing on purpose. The known weakness of the per-IP approach -- an attacker who changes
+// address starts over -- is the lesser evil, and it does not remove the cost: a fresh address is
+// needed at every step.
 //
-// DECROISSANCE. Sans oubli, un utilisateur revenu le lendemain repartirait avec le compteur au plus
-// haut. Apres LOGIN_DECAY_MS sans tentative et hors verrouillage, le compteur est remis a zero.
+// DECAY. With no forgetting, a user coming back the next day would start again at the highest
+// counter. After LOGIN_DECAY_MS without an attempt, and outside a lockout, the counter is reset.
 //
-// EVICTION, et son compromis assume. Le tableau est borne ; a saturation on recycle d'abord un
-// emplacement libre, puis le plus ancien NON verrouille, et seulement en dernier recours celui dont
-// le verrou expire le plus tot. Ce dernier cas offre a un attaquant capable de faire varier son
-// adresse un moyen de raccourcir son propre repli -- mais il faut saturer les 8 emplacements en
-// permanence, et l'alternative (refuser toute nouvelle IP quand le tableau est plein) retablirait
-// exactement le deni de service qu'on vient de supprimer. Ne jamais enfermer le proprietaire dehors
-// prime.
+// EVICTION, and its accepted trade-off. The table is bounded; when full, a free slot is recycled
+// first, then the oldest NOT locked one, and only as a last resort the one whose lock expires
+// soonest. That last case gives an attacker able to vary their address a way to shorten their own
+// backoff -- but it takes keeping all 8 slots saturated, and the alternative (refusing every new IP
+// when the table is full) would restore exactly the denial of service just removed. Never locking
+// the owner out comes first.
 //
-// CONCURRENCE : aucun verrou necessaire. handleClient() des deux serveurs est appele depuis la
-// boucle Arduino (cf. SomfyController.ino), donc depuis une tache unique.
+// CONCURRENCY: no lock needed. handleClient() of both servers is called from the Arduino loop (see
+// SomfyController.ino), hence from a single task.
 #define LOGIN_FREE_ATTEMPTS 3
 #define LOGIN_LOCKOUT_BASE_SECONDS 15
 #define LOGIN_LOCKOUT_MAX_SECONDS 900
@@ -256,8 +253,8 @@ struct login_tracker_t {
 };
 static login_tracker_t g_loginTrackers[LOGIN_TRACK_SLOTS];
 
-// Comparaison en difference signee : millis() repasse a zero tous les ~49 jours, et un
-// `millis() < lockUntil` naif verrouillerait alors pour la duree entiere du cycle.
+// Compared as a signed difference: millis() wraps to zero every ~49 days, and a naive
+// `millis() < lockUntil` would then lock for the whole length of the cycle.
 static bool loginIsLocked(const login_tracker_t &t) {
   return t.lockUntil != 0 && (int32_t)(t.lockUntil - millis()) > 0;
 }
@@ -267,8 +264,8 @@ static login_tracker_t *loginTrackerFor(const IPAddress &addr) {
   for(uint8_t i = 0; i < LOGIN_TRACK_SLOTS; i++) {
     if(g_loginTrackers[i].used && g_loginTrackers[i].ip == ip) {
       login_tracker_t &t = g_loginTrackers[i];
-      // Le silence prolonge efface l'ardoise, mais JAMAIS un verrou en cours -- sans quoi il
-      // suffirait d'attendre pour l'annuler.
+      // Prolonged silence wipes the slate, but NEVER a lock in progress -- otherwise waiting
+      // would be enough to cancel it.
       if(!loginIsLocked(t) && (uint32_t)(now - t.lastSeen) >= LOGIN_DECAY_MS) {
         t.fails = 0;
         t.lockUntil = 0;
@@ -301,11 +298,11 @@ static login_tracker_t *loginTrackerFor(const IPAddress &addr) {
   pick->lastSeen = now;
   return pick;
 }
-// Duree du verrou apres `fails` echecs : doublement a chaque echec au-dela du quota libre, plafonne.
+// Lock duration after `fails` failures: doubling on each failure past the free quota, capped.
 static uint32_t loginLockoutSeconds(uint16_t fails) {
   uint16_t over = (fails > LOGIN_FREE_ATTEMPTS) ? (uint16_t)(fails - LOGIN_FREE_ATTEMPTS - 1) : 0;
-  // Decalage borne AVANT application : au-dela de 16 il deborderait l'entier bien avant que le
-  // plafond n'ait l'occasion d'agir.
+  // The shift is bounded BEFORE being applied: past 16 it would overflow the integer well before
+  // the cap had a chance to act.
   if(over > 16) over = 16;
   uint32_t secs = (uint32_t)LOGIN_LOCKOUT_BASE_SECONDS << over;
   return (secs > LOGIN_LOCKOUT_MAX_SECONDS) ? LOGIN_LOCKOUT_MAX_SECONDS : secs;
@@ -329,8 +326,8 @@ bool Web::createAPIToken(const char *payload, char *token) {
     mbedtls_md_hmac_starts(&ctx, (const unsigned char *)settings.serverId, strlen(settings.serverId));
     mbedtls_md_hmac_update(&ctx, (const unsigned char *)payload, strlen(payload)); 
     mbedtls_md_hmac_finish(&ctx, hmacResult);
-    // Ni le jeton ni le PIN ne sont tracés : la liaison série est lisible par quiconque ouvre le
-    // boîtier, et le jeton vaut la session.
+    // Neither the token nor the PIN is logged: the serial line is readable by anyone who opens the
+    // enclosure, and the token is worth the session.
     token[0] = '\0';
     for(int i = 0; i < sizeof(hmacResult); i++){
         char str[3];
@@ -350,9 +347,9 @@ void Web::handleLang(WebServer &server) {
     webServer.sendCORSHeaders(server);
     if (server.method() == HTTP_OPTIONS) { server.send(200, "OK"); return; }
 
-    String filename = "/locale/en.json.gz"; // Par défaut en .gz
+    String filename = "/locale/en.json.gz"; // .gz by default
 
-    // On définit le fichier selon le réglage
+    // Pick the file according to the setting
     if (settings.language == 0) filename = "/locale/en.json.gz";
     else if (settings.language == 1) filename = "/locale/fr.json.gz";
     else if (settings.language == 2) filename = "/locale/de.json.gz";
@@ -361,14 +358,14 @@ void Web::handleLang(WebServer &server) {
     if (LittleFS.exists(filename)) {
         File file = LittleFS.open(filename, "r");
         
-        // --- MÉTHODE D'ENVOI MANUELLE (Identique à handleStreamFile) ---
+        // --- MANUAL SEND METHOD (identical to handleStreamFile) ---
         server.setContentLength(file.size());
         server.sendHeader("Content-Encoding", "gzip");
         
         // On envoie le Type MIME JSON
         server.send(200, "application/json", ""); 
         
-        // Envoi du binaire compressé
+        // Send the compressed binary
         server.client().write(file);
         
         file.close();
@@ -450,8 +447,8 @@ void Web::handleLogin(WebServer &server) {
       if(server.hasArg("password")) strlcpy(password, server.arg("password").c_str(), sizeof(password));
       if(server.hasArg("pin")) strlcpy(pin, server.arg("pin").c_str(), sizeof(pin));
     }
-    // Anti force brute : verrouillage actif POUR CETTE ADRESSE, on refuse sans meme comparer les
-    // identifiants. L'emplacement est resolu ici une seule fois, et reutilise plus bas.
+    // Brute-force protection: a lock is active FOR THIS ADDRESS, so refuse without even comparing
+    // the credentials. The slot is resolved here once, and reused below.
     login_tracker_t *tracker = loginTrackerFor(server.client().remoteIP());
     if(loginIsLocked(*tracker)) {
       uint32_t retryAfter = (uint32_t)((tracker->lockUntil - millis() + 999) / 1000);
@@ -492,7 +489,7 @@ void Web::handleLogin(WebServer &server) {
     else {
       if(tracker->fails < 1000) tracker->fails++;
       if(tracker->fails > LOGIN_FREE_ATTEMPTS) {
-        // Au-dela du quota libre : verrouillage de CETTE adresse, double a chaque nouvel echec.
+        // Past the free quota: lock THIS address, doubling on each new failure.
         uint32_t secs = loginLockoutSeconds(tracker->fails);
         tracker->lockUntil = millis() + (secs * 1000UL);
         obj["retryAfter"] = secs;
@@ -500,8 +497,8 @@ void Web::handleLogin(WebServer &server) {
         server.send(429, _encoding_json, g_content);
         return;
       }
-      // Encore dans le quota d'essais libres : on indique ou on en est, pour que l'interface puisse
-      // avertir plutot que de laisser l'utilisateur decouvrir le verrou.
+      // Still inside the quota of free attempts: report where we stand, so the UI can warn rather
+      // than let the user discover the lock.
       obj["attempt"] = tracker->fails;
       obj["maxAttempts"] = LOGIN_FREE_ATTEMPTS;
     }
@@ -519,10 +516,10 @@ void Web::handleStreamFile(WebServer &server, const char *filename, const char *
   if(server.method() == HTTP_OPTIONS) { server.send(200, "OK"); return; }
   esp_task_wdt_reset();
   // Load the index html page from the data directory.
-  // --- LE MOUCHARD DE MÉMOIRE ---
+  // --- MEMORY TRACER ---
   WiFiClient clientDetect = server.client();
-  //Serial.printf("\n[DEBUG] Requête de l'IP: %s | Fichier: %s\n", clientDetect.remoteIP().toString().c_str(), filename);
-  //Serial.printf("[DEBUG] RAM Avant: Free:%d | MaxBlock:%d\n", ESP.getFreeHeap(), ESP.getMaxAllocHeap());
+  //Serial.printf("\n[DEBUG] Request from IP: %s | File: %s\n", clientDetect.remoteIP().toString().c_str(), filename);
+  //Serial.printf("[DEBUG] RAM before: Free:%d | MaxBlock:%d\n", ESP.getFreeHeap(), ESP.getMaxAllocHeap());
   // ------------------------------
 
   
@@ -572,12 +569,12 @@ void Web::handleController(WebServer &server) {
     somfy.toJSONRooms(resp);
     resp.endArray();
     resp.beginArray("shades");
-    // Secrets radio au niveau CONFIG seulement, sur les six routes de niveau Control qui servent des
-    // equipements (/controller, /shades, /shade, /discovery, /setPositions, /setSensor). La route
-    // reste Control : ce sont les SECRETS qui montent d'un cran, pas l'acces -- sinon le mode
-    // "config seule", ou le garde passe sans cle, servirait le couple adresse/code tournant a
-    // quiconque est sur le reseau local. checkAuth() et non isAuthenticated() : il ne faut PAS
-    // repondre ici, la vraie reponse part juste apres.
+    // Radio secrets at CONFIG level only, on the six Control-level routes that serve shades
+    // (/controller, /shades, /shade, /discovery, /setPositions, /setSensor). The route stays
+    // Control: it is the SECRETS that move up a notch, not the access -- otherwise config-only
+    // mode, where the guard passes without a key, would serve the address/rolling-code pair to
+    // anyone on the local network. checkAuth() and not isAuthenticated(): this must NOT answer
+    // here, the real response goes out just after.
     somfy.toJSONShades(resp, webServer.checkAuth(server, true));
     resp.endArray();
     resp.beginArray("groups");
@@ -599,18 +596,16 @@ void Web::handleLoginContext(WebServer &server) {
     resp.beginObject();
     resp.addElem("type", static_cast<uint8_t>(settings.Security.type));
     resp.addElem("permissions", settings.Security.permissions);
-    // VERDICT DU FIRMWARE sur la cle presentee AVEC cette requete. C'est ce qui permet au
-    // navigateur de restaurer une session -- cle conservee dans le sessionStorage de l'onglet --
-    // sans jamais decider lui-meme qu'il est authentifie. Une cle perimee (PIN change depuis un
-    // autre appareil, adresse IP du client changee, secret regenere) est refusee ici et l'ecran de
-    // connexion reapparait, au lieu de laisser l'interface se croire connectee puis collectionner
-    // les 401.
+    // THE FIRMWARE'S VERDICT on the key presented WITH this request. It is what lets the browser
+    // restore a session -- key kept in the tab's sessionStorage -- without ever deciding on its own
+    // that it is authenticated. A stale key (PIN changed from another device, client IP changed,
+    // secret regenerated) is refused here and the login screen comes back, instead of letting the
+    // UI believe it is signed in and then collect 401s.
     //
-    // Verifiee au niveau CONFIGURATION : en mode "config seule" une verification de niveau
-    // controle passe sans aucune cle (cf. checkAuth), elle ne dirait donc rien de la validite de
-    // celle qui a ete presentee. Et false d'office sans securite, ou `checkAuth` repond vrai pour
-    // tout le monde : sans PIN il n'y a pas de session, et tout le code client teste
-    // `type === 0 || authenticated`.
+    // Checked at CONFIGURATION level: in config-only mode a control-level check passes with no key
+    // at all (see checkAuth), so it would say nothing about the validity of the one presented. And
+    // false outright with security off, where `checkAuth` answers true for everyone: with no PIN
+    // there is no session, and all the client code tests `type === 0 || authenticated`.
     resp.addElem("authenticated",
       settings.Security.type == security_types::None ? false : webServer.checkAuth(server, true));
     resp.addElem("serverId", settings.serverId);
@@ -1395,6 +1390,32 @@ void Web::handleReboot(WebServer &server) {
   else {
     server.send(201, _encoding_json, "{\"status\":\"ERROR\",\"desc\":\"Invalid HTTP Method: \"}");
   }
+}
+// Validates before anything is applied: fromJSON() has no error channel of its own.
+static bool validateRadioPins(JsonObject& obj, String &err) {
+  if(!obj.containsKey("config")) return true;
+  JsonObject cfg = obj["config"];
+  const transceiver_config_t &cur = somfy.transceiver.config;
+  struct pin_slot_t { const char *key; const char *label; uint8_t current; radio_pin_role role; };
+  const pin_slot_t slots[6] = {
+    {"SCKPin",  "SCK",  cur.SCKPin,  radio_pin_role::spi_out},
+    {"MOSIPin", "MOSI", cur.MOSIPin, radio_pin_role::spi_out},
+    {"CSNPin",  "CSN",  cur.CSNPin,  radio_pin_role::spi_out},
+    {"MISOPin", "MISO", cur.MISOPin, radio_pin_role::spi_in},
+    {"RXPin",   "RX",   cur.RXPin,   radio_pin_role::spi_in},
+    {"TXPin",   "TX",   cur.TXPin,   radio_pin_role::tx_bitbang}
+  };
+  for(uint8_t i = 0; i < 6; i++) {
+    // A missing key keeps the current value: the resulting state is what gets validated.
+    int v = cfg.containsKey(slots[i].key) ? cfg[slots[i].key].as<int>() : (int)slots[i].current;
+    const char *code = radioPinFault(v, slots[i].role);
+    if(!code) continue;
+    err = String("{\"status\":\"ERROR\",\"code\":\"") + code + "\",\"pin\":" + v +
+          ",\"line\":\"" + slots[i].label + "\",\"desc\":\"GPIO" + v + " (" + slots[i].label +
+          ") is " + radioPinFaultText(code) + ".\"}";
+    return false;
+  }
+  return true;
 }
 void Web::begin() {
   Serial.println("Creating Web MicroServices...");
@@ -2572,16 +2593,16 @@ void Web::begin() {
     webServer.sendCORSHeaders(server);
     if(server.method() == HTTP_OPTIONS) return server.send(200);
 
-    StaticJsonDocument<768> doc; // Un seul doc suffit pour l'entrée et la sortie
+    StaticJsonDocument<768> doc; // One doc is enough for both input and output
     if (deserializeJson(doc, server.arg("plain"))) return server.send(400, "text/plain", F("J-Err"));
 
     if (server.method() == HTTP_POST || server.method() == HTTP_PUT) {
       JsonObject obj = doc.as<JsonObject>();
       settings.Security.fromJSON(obj);
       settings.Security.save();
-      // Le jeton derive du PIN/mot de passe : les sockets deja ouvertes tiennent desormais une cle
-      // fausse, et resteraient pourtant abonnees a l'etat complet des equipements. On les coupe, le
-      // client se reconnectera avec la nouvelle cle (celle renvoyee juste en dessous).
+      // The token derives from the PIN/password: sockets already open now hold a wrong key, yet
+      // would stay subscribed to the full shade state. They are cut, and the client will reconnect
+      // with the new key (the one returned just below).
       sockRevokeAllClients();
 
       doc.clear();
@@ -2611,11 +2632,13 @@ void Web::begin() {
     webServer.sendCORSHeaders(server);
     if(server.method() == HTTP_OPTIONS) return server.send(200);
 
-    StaticJsonDocument<512> doc; // Réduit de 1024 à 768 si tes réglages radio sont simples
+    StaticJsonDocument<512> doc; // Cut from 1024 to 768 if your radio settings are simple
     if (deserializeJson(doc, server.arg("plain"))) return server.send(400, "text/plain", F("J-Err"));
 
     if (server.method() == HTTP_POST || server.method() == HTTP_PUT) {
       JsonObject obj = doc.as<JsonObject>();
+      String err;
+      if(!validateRadioPins(obj, err)) return server.send(400, _encoding_json, err);
       somfy.transceiver.fromJSON(obj);
       somfy.transceiver.save();
 
@@ -2780,11 +2803,11 @@ void Web::begin() {
             if(objWifi.containsKey("ssid") && objWifi["ssid"].as<String>().compareTo(settings.WIFI.ssid) != 0) {
               if(WiFi.softAPgetStationNum() == 0) reboot = true;
             }
-            // Une passphrase VIDE signifie "inchangee" (cf. WifiSettings::fromJSON) : l'interface ne
-            // recoit plus la vraie valeur et poste donc un champ vide a chaque enregistrement de
-            // cette page. Sans ce test de longueur, la comparaison -- qui a lieu AVANT fromJSON,
-            // donc contre la valeur encore stockee -- conclurait a un changement et redemarrerait le
-            // boitier a chaque sauvegarde reseau, alors que rien n'a bouge.
+            // An EMPTY passphrase means "unchanged" (see WifiSettings::fromJSON): the UI no longer
+            // receives the real value and therefore posts an empty field on every save of this
+            // page. Without this length test the comparison -- which happens BEFORE fromJSON, so
+            // against the value still stored -- would conclude something changed and reboot the
+            // controller on every network save, when nothing moved.
             if(objWifi.containsKey("passphrase")) {
               String phr = objWifi["passphrase"].as<String>();
               if(phr.length() > 0 && phr.compareTo(settings.WIFI.passphrase) != 0) {

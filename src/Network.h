@@ -14,7 +14,7 @@ protected:
   int lastChannel = 0;
   int linkSpeed = 0;
 public:
-  // Regroupement des booléens (Gain de place RAM/Alignement)
+  // Booleans grouped together (saves RAM, keeps alignment)
   bool _connecting = false;
   bool ethStarted = false;
   bool wifiFallback = false;
