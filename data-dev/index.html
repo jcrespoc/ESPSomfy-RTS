@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -68,6 +68,7 @@
                     <a class="sub-nav-item selected" data-grpid="divSystemOptions" tr="SUB_OPTION">Options</a>
                     <a class="sub-nav-item" data-grpid="divSecurityOptions" tr="SUB_SECURITY">Sécurité</a>
                     <a class="sub-nav-item" data-grpid="divFirmware" tr="FIRMWARE">Firmware</a>
+                    <a class="sub-nav-item" data-grpid="divSystemLogs" tr="SUBTAB_LOGS">Logs</a>
                 </div>
             </div>
             <div class="nav-group">
@@ -148,7 +149,7 @@
                     </span>
                 </div>
                 <div id="divSystemSettings">
-                    <div class="subtab-container"><span class="selected" data-grpid="divSystemOptions" tr="SUB_OPTION"></span><span data-grpid="divSecurityOptions" tr="SUB_SECURITY"></span><span data-grpid="divFirmware" tr="FIRMWARE"></span></div>
+                    <div class="subtab-container"><span class="selected" data-grpid="divSystemOptions" tr="SUB_OPTION"></span><span data-grpid="divSecurityOptions" tr="SUB_SECURITY"></span><span data-grpid="divFirmware" tr="FIRMWARE"></span><span data-grpid="divSystemLogs" tr="SUBTAB_LOGS"></span></div>
                     <div id="divSystemOptions" class="subtab-content">
                         <div class="button-container-pair">
                             <div id="divBtnLBC" class="unibloc">
@@ -490,6 +491,115 @@
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                    <div id="divSystemLogs" class="subtab-content" style="display:none;">
+                        <div class="unibloc">
+                            <div class="log-toolbar">
+                                <div class="log-filters">
+                                    <button type="button" class="btn-log-filter active" data-lvl="all" onclick="logViewer.setLevelFilter('all');" tr="LOG_FILTER_ALL">All</button>
+                                    <button type="button" class="btn-log-filter" data-lvl="error" onclick="logViewer.setLevelFilter('error');" tr="LOG_FILTER_ERROR">Error</button>
+                                    <button type="button" class="btn-log-filter" data-lvl="warn" onclick="logViewer.setLevelFilter('warn');" tr="LOG_FILTER_WARN">Warn</button>
+                                    <button type="button" class="btn-log-filter" data-lvl="info" onclick="logViewer.setLevelFilter('info');" tr="LOG_FILTER_INFO">Info</button>
+                                    <button type="button" class="btn-log-filter" data-lvl="debug" onclick="logViewer.setLevelFilter('debug');" tr="LOG_FILTER_DEBUG">Debug</button>
+                                    <button type="button" class="btn-log-filter" data-lvl="verbose" onclick="logViewer.setLevelFilter('verbose');" tr="LOG_FILTER_VERBOSE">Verbose</button>
+                                </div>
+                                <div class="log-search-box">
+                                    <input type="text" id="txtLogSearch" class="inputAndSelect" tr="LOG_SEARCH_PLACEHOLDER" placeholder="Search..." oninput="logViewer.filterChanged();" />
+                                </div>
+                                <label class="log-autoscroll" for="chkLogAutoScroll">
+                                    <span class="switch">
+                                        <input type="checkbox" id="chkLogAutoScroll" checked />
+                                        <div></div>
+                                    </span>
+                                    <span tr="LOG_AUTOSCROLL">Auto-scroll</span>
+                                </label>
+                            </div>
+                            <div id="divLogConsole" class="log-terminal"></div>
+                            <div class="footer-overlay log-actions">
+                                <button type="button" id="btnClearLogConsole" onclick="logViewer.clear();" tr="BT_CLEAR"></button>
+                                <button type="button" id="btnDownloadLogConsole" onclick="logViewer.download();" tr="LOG_BTN_DOWNLOAD"></button>
+                            </div>
+                        </div>
+
+                        <div class="unibloc">
+                            <div class="uniRow log-row">
+                                <div class="uniText log-col-name">
+                                    <div class="uniLabel" tr="LOG_LEVEL_SERIAL"></div>
+                                </div>
+                                <div class="uniRight log-col-ctrl">
+                                    <select id="selLogLevelSerial" class="inputAndSelect log-select">
+                                        <option value="11" tr="LOG_OPT_DISABLED"></option>
+                                        <option value="4" tr="LOG_OPT_ERROR"></option>
+                                        <option value="5" tr="LOG_OPT_WARN"></option>
+                                        <option value="7" tr="LOG_OPT_INFO"></option>
+                                        <option value="8" tr="LOG_OPT_DEBUG"></option>
+                                        <option value="10" tr="LOG_OPT_VERBOSE"></option>
+                                    </select>
+                                </div>
+                            </div>
+                            <hr>
+                            <div class="uniRow log-row">
+                                <div class="uniText log-col-name">
+                                    <div class="uniLabel" tr="LOG_LEVEL_WS"></div>
+                                </div>
+                                <div class="uniRight log-col-ctrl">
+                                    <select id="selLogLevelWS" class="inputAndSelect log-select">
+                                        <option value="11" tr="LOG_OPT_DISABLED"></option>
+                                        <option value="4" tr="LOG_OPT_ERROR"></option>
+                                        <option value="5" tr="LOG_OPT_WARN"></option>
+                                        <option value="7" tr="LOG_OPT_INFO"></option>
+                                        <option value="8" tr="LOG_OPT_DEBUG"></option>
+                                        <option value="10" tr="LOG_OPT_VERBOSE"></option>
+                                    </select>
+                                </div>
+                            </div>
+                            <hr>
+                            <div class="uniRow log-row">
+                                <div class="uniText log-col-name">
+                                    <div class="uniLabel" tr="LOG_LEVEL_SPIFFS"></div>
+                                </div>
+                                <div class="uniRight log-col-ctrl">
+                                    <select id="selLogLevelSpiffs" class="inputAndSelect log-select">
+                                        <option value="11" tr="LOG_OPT_DISABLED"></option>
+                                        <option value="4" tr="LOG_OPT_ERROR"></option>
+                                        <option value="5" tr="LOG_OPT_WARN"></option>
+                                        <option value="7" tr="LOG_OPT_INFO"></option>
+                                        <option value="8" tr="LOG_OPT_DEBUG"></option>
+                                        <option value="10" tr="LOG_OPT_VERBOSE"></option>
+                                    </select>
+                                </div>
+                            </div>
+                            <hr>
+                            <div class="uniRow log-row">
+                                <div class="uniText log-col-name">
+                                    <div class="uniLabel" tr="LOG_LEVEL_SYSLOG"></div>
+                                </div>
+                                <div class="uniRight log-col-ctrl">
+                                    <select id="selLogLevelSyslog" class="inputAndSelect log-select">
+                                        <option value="11" tr="LOG_OPT_DISABLED"></option>
+                                        <option value="4" tr="LOG_OPT_ERROR"></option>
+                                        <option value="5" tr="LOG_OPT_WARN"></option>
+                                        <option value="7" tr="LOG_OPT_INFO"></option>
+                                        <option value="8" tr="LOG_OPT_DEBUG"></option>
+                                        <option value="10" tr="LOG_OPT_VERBOSE"></option>
+                                    </select>
+                                </div>
+                            </div>
+                            <hr>
+                            <div class="uniRow log-row">
+                                <div class="uniText log-col-name">
+                                    <label class="uniLabel" for="txtSyslogHost" tr="LOG_SYSLOG_HOST_PORT"></label>
+                                </div>
+                                <div class="uniRight log-host-port-wrap">
+                                    <input type="text" id="txtSyslogHost" class="inputAndSelect log-input log-input-host" maxlength="64" placeholder="IP / Host" />
+                                    <span class="log-colon">:</span>
+                                    <input type="number" id="numSyslogPort" class="inputAndSelect log-input log-input-port" min="1" max="65535" value="514" placeholder="514" />
+                                </div>
+                            </div>
+                        </div>
+                        <div class="footer-overlay">
+                            <button id="btnSaveLogConfig" type="button" tr="BT_SAVE" onclick="logViewer.saveConfig();"></button>
                         </div>
                     </div>
                 </div>

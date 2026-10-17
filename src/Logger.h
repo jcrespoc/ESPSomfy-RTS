@@ -1,16 +1,10 @@
 #ifndef _LOGGER_H
 #define _LOGGER_H
 
-#define LOG_LEVEL_ALWAYS     0
-#define LOG_LEVEL_EMERGENCY  1
-#define LOG_LEVEL_ALERT      2
-#define LOG_LEVEL_CRITICAL   3
 #define LOG_LEVEL_ERROR      4
 #define LOG_LEVEL_WARNING    5
-#define LOG_LEVEL_NOTICE     6
 #define LOG_LEVEL_INFO       7
 #define LOG_LEVEL_DEBUG      8
-#define LOG_LEVEL_TRACE      9
 #define LOG_LEVEL_VERBOSE    10
 #define LOG_LEVEL_NOLOG      11
 
@@ -53,6 +47,10 @@
 #define WSLOG 3
 
 void LoggerInit();
+#ifdef ELOG_WEB_INTEGRATION
+class LogSettings;
+void applyLogSettings(const LogSettings& cfg);
+#endif
 
 template <typename Fmt, typename... Args>
 inline void logRoute(uint8_t level, Fmt format, Args... args) {
@@ -74,17 +72,29 @@ void logRoute(uint8_t level, const char *str);
 void logRoute(uint8_t level, const __FlashStringHelper *str);
 void logRoute(uint8_t level, const String str);
 void logRoute(uint8_t level, const char *str, const void *buff, size_t len);
+void logRouteHex(uint8_t level, const char *str, const void *buff, size_t len);
+
+template <typename T>
+inline void logRoute(uint8_t level, const char *str, const T *buff, size_t len) {
+  logRouteHex(level, str, (const void*)buff, len);
+}
 
 #define LOG_E_PRINTF(fmt, ...) logRoute(ELOG_LEVEL_ERROR, fmt, ##__VA_ARGS__)
+#define LOG_W_PRINTF(fmt, ...) logRoute(ELOG_LEVEL_WARNING, fmt, ##__VA_ARGS__)
 #define LOG_I_PRINTF(fmt, ...) logRoute(ELOG_LEVEL_INFO, fmt, ##__VA_ARGS__)
 #define LOG_D_PRINTF(fmt, ...) logRoute(ELOG_LEVEL_DEBUG, fmt, ##__VA_ARGS__)
+#define LOG_V_PRINTF(fmt, ...) logRoute(ELOG_LEVEL_VERBOSE, fmt, ##__VA_ARGS__)
 
 #define LOG_E_PRINTLN(str) logRoute(ELOG_LEVEL_ERROR, str)
+#define LOG_W_PRINTLN(str) logRoute(ELOG_LEVEL_WARNING, str)
 #define LOG_I_PRINTLN(str) logRoute(ELOG_LEVEL_INFO, str)
 #define LOG_D_PRINTLN(str) logRoute(ELOG_LEVEL_DEBUG, str)
+#define LOG_V_PRINTLN(str) logRoute(ELOG_LEVEL_VERBOSE, str)
 
-#define LOG_E_HEX(str, buff, len) logRoute(ELOG_LEVEL_ERROR, str, buff, len)
-#define LOG_I_HEX(str, buff, len) logRoute(ELOG_LEVEL_INFO, str, buff, len)
-#define LOG_D_HEX(str, buff, len) logRoute(ELOG_LEVEL_DEBUG, str, buff, len)
+#define LOG_E_HEX(str, buff, len) logRouteHex(ELOG_LEVEL_ERROR, str, buff, len)
+#define LOG_W_HEX(str, buff, len) logRouteHex(ELOG_LEVEL_WARNING, str, buff, len)
+#define LOG_I_HEX(str, buff, len) logRouteHex(ELOG_LEVEL_INFO, str, buff, len)
+#define LOG_D_HEX(str, buff, len) logRouteHex(ELOG_LEVEL_DEBUG, str, buff, len)
+#define LOG_V_HEX(str, buff, len) logRouteHex(ELOG_LEVEL_VERBOSE, str, buff, len)
 
 #endif //_LOGGER_H

@@ -6,6 +6,7 @@
 #include "ConfigSettings.h"
 #include "Utils.h"
 #include "esp_chip_info.h"
+#include "Logger.h"
 
 
 Preferences pref;
@@ -222,6 +223,8 @@ bool ConfigSettings::begin() {
   this->Ethernet.begin();
   this->NTP.begin();
   this->MQTT.begin();
+  this->Log.begin();
+  applyLogSettings(this->Log);
   this->print();
   return true;
 }
@@ -448,6 +451,101 @@ bool MQTTSettings::load() {
   pref.end();
   return true;
 }
+bool LogSettings::begin() {
+  return this->load();
+}
+bool LogSettings::save() {
+  pref.begin("LOG");
+  pref.clear();
+  pref.putUChar("sLevel", this->serialLevel);
+  pref.putUChar("wLevel", this->wsLevel);
+  pref.putUChar("yLevel", this->syslogLevel);
+  pref.putString("yHost", this->syslogHost);
+  pref.putUShort("yPort", this->syslogPort);
+  pref.putUChar("fLevel", this->spiffsLevel);
+  pref.end();
+  return true;
+}
+bool LogSettings::load() {
+  pref.begin("LOG");
+  this->serialLevel = pref.getUChar("sLevel", ELOG_SERIAL_LEVEL);
+  this->wsLevel = pref.getUChar("wLevel", ELOG_WS_LEVEL);
+  this->syslogLevel = pref.getUChar("yLevel", ELOG_SYSLOG_LEVEL);
+  pref.getString("yHost", this->syslogHost, sizeof(this->syslogHost));
+#ifdef ELOG_SYSLOG_HOST
+  if(strlen(this->syslogHost) == 0) {
+    strlcpy(this->syslogHost, ELOG_SYSLOG_HOST, sizeof(this->syslogHost));
+  }
+#endif
+  this->syslogPort = pref.getUShort("yPort", 514);
+  this->spiffsLevel = pref.getUChar("fLevel", ELOG_SPIFFS_LEVEL);
+  pref.end();
+  return true;
+}
+bool LogSettings::toJSON(JsonObject &obj) {
+  JsonObject s = obj.createNestedObject("serial");
+  s["level"] = this->serialLevel;
+
+  JsonObject w = obj.createNestedObject("ws");
+  w["level"] = this->wsLevel;
+
+  JsonObject y = obj.createNestedObject("syslog");
+  y["level"] = this->syslogLevel;
+  y["host"] = this->syslogHost;
+  y["port"] = this->syslogPort;
+
+  JsonObject f = obj.createNestedObject("spiffs");
+  f["level"] = this->spiffsLevel;
+
+  return true;
+}
+void LogSettings::toJSON(JsonResponse &json) {
+  json.beginObject("serial");
+  json.addElem("level", (uint8_t)this->serialLevel);
+  json.endObject();
+
+  json.beginObject("ws");
+  json.addElem("level", (uint8_t)this->wsLevel);
+  json.endObject();
+
+  json.beginObject("syslog");
+  json.addElem("level", (uint8_t)this->syslogLevel);
+  json.addElem("host", this->syslogHost);
+  json.addElem("port", (uint32_t)this->syslogPort);
+  json.endObject();
+
+  json.beginObject("spiffs");
+  json.addElem("level", (uint8_t)this->spiffsLevel);
+  json.endObject();
+}
+bool LogSettings::fromJSON(JsonObject &obj) {
+  if (obj.containsKey("serial")) {
+    JsonObject s = obj["serial"];
+    if (s.containsKey("level")) this->serialLevel = s["level"];
+  }
+  if (obj.containsKey("ws")) {
+    JsonObject w = obj["ws"];
+    if (w.containsKey("level")) this->wsLevel = w["level"];
+  }
+  if (obj.containsKey("syslog")) {
+    JsonObject y = obj["syslog"];
+    if (y.containsKey("level")) this->syslogLevel = y["level"];
+    if (y.containsKey("host")) {
+      const char *h = y["host"];
+      if (h) strlcpy(this->syslogHost, h, sizeof(this->syslogHost));
+    }
+    if (y.containsKey("port")) this->syslogPort = y["port"];
+  }
+  if (obj.containsKey("spiffs")) {
+    JsonObject f = obj["spiffs"];
+    if (f.containsKey("level")) this->spiffsLevel = f["level"];
+  }
+  return true;
+}
+void LogSettings::print() {
+  Serial.printf("LOG: Serial=%u, WS=%u, Syslog=%u (%s:%u), SPIFFS=%u\n",
+    this->serialLevel, this->wsLevel, this->syslogLevel, this->syslogHost, this->syslogPort, this->spiffsLevel);
+}
 bool ConfigSettings::toJSON(DynamicJsonDocument &doc) {
   doc["fwVersion"] = this->fwVersion.name;
   JsonObject objWIFI = doc.createNestedObject("WIFI");
@@ -456,6 +554,8 @@ bool ConfigSettings::toJSON(DynamicJsonDocument &doc) {
   this->NTP.toJSON(objNTP);
   JsonObject objMQTT = doc.createNestedObject("MQTT");
   this->MQTT.toJSON(objMQTT);
+  JsonObject objLog = doc.createNestedObject("Log");
+  this->Log.toJSON(objLog);
   return true;
 }
 bool NTPSettings::begin() {

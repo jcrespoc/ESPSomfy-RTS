@@ -15,6 +15,7 @@
 #include "GitOTA.h"
 #include "Sockets.h"
 #include "Network.h"
+#include "Logger.h"
 
 extern ConfigSettings settings;
 extern SSDPClass SSDP;
@@ -2712,6 +2713,44 @@ void Web::begin() {
         server.send(201, "application/json", "{\"status\":\"ERROR\",\"desc\":\"Invalid HTTP Method: \"}");
       }
     }
+    });
+  server.on("/logConfig", []() {
+    webServer.sendCORSHeaders(server);
+    if (server.method() == HTTP_OPTIONS) { server.send(200, "OK"); return; }
+    HTTPMethod method = server.method();
+
+    if (method == HTTP_GET) {
+      DynamicJsonDocument doc(512);
+      JsonObject root = doc.to<JsonObject>();
+      settings.Log.toJSON(root);
+      String resp;
+      serializeJson(doc, resp);
+      server.send(200, "application/json", resp);
+      return;
+    }
+
+    if (method == HTTP_POST || method == HTTP_PUT) {
+      DynamicJsonDocument doc(512);
+      DeserializationError err = deserializeJson(doc, server.arg("plain"));
+      if (err) {
+        webServer.handleDeserializationError(server, err);
+        return;
+      }
+      JsonObject obj = doc.as<JsonObject>();
+      settings.Log.fromJSON(obj);
+      settings.Log.save();
+      applyLogSettings(settings.Log);
+
+      DynamicJsonDocument respDoc(512);
+      JsonObject respRoot = respDoc.to<JsonObject>();
+      settings.Log.toJSON(respRoot);
+      String resp;
+      serializeJson(respDoc, resp);
+      server.send(200, "application/json", resp);
+      return;
+    }
+
+    server.send(405, "application/json", "{\"status\":\"ERROR\",\"desc\":\"Method Not Allowed\"}");
     });
   server.on("/setNetwork", []() {
     webServer.sendCORSHeaders(server);

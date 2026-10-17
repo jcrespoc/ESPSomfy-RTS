@@ -672,6 +672,12 @@ async function initSockets() {
                         case 'frequencyScan':
                             somfy.procFrequencyScan(msg);
                             break;
+                        case 'log':
+                        case '"log"':
+                            if (typeof logViewer !== 'undefined') {
+                                logViewer.procLog(msg);
+                            }
+                            break;
                     }
                 } catch (err) {
                     console.error({ eventName: eventName, data: data, err: err });
@@ -686,6 +692,9 @@ async function initSockets() {
             connecting = false;
             connects++;
             connectFailed = 0;
+            if (typeof logViewer !== 'undefined' && get('divSystemLogs') && get('divSystemLogs').style.display !== 'none') {
+                logViewer.onTabActivated();
+            }
             let wms = document.getElementsByClassName('socket-wait');
             for (let i = 0; i < wms.length; i++) {
                 wms[i].remove();
@@ -848,6 +857,9 @@ function bindNavigation() {
             if (!isSub) {
                 if (groupId !== 'divSomfySettings' && typeof somfy !== 'undefined') {
                     somfy.showEditShade(false); somfy.showEditGroup(false);
+                }
+                if (groupId !== 'divSystemSettings' && typeof logViewer !== 'undefined') {
+                    logViewer.onTabDeactivated();
                 }
                 if (groupId === 'divNetworkSettings' && typeof wifi !== 'undefined') wifi.loadNetwork();
                 document.querySelectorAll('.tab-container > span').forEach(t => {
@@ -1438,6 +1450,14 @@ class UIBinder {
 
         const targetSection = get(groupId);
         if (targetSection) targetSection.style.display = '';
+
+        if (typeof logViewer !== 'undefined') {
+            if (groupId === 'divSystemLogs') {
+                logViewer.onTabActivated();
+            } else if (targetSection && targetSection.closest('#divSystemSettings')) {
+                logViewer.onTabDeactivated();
+            }
+        }
     }
     wizSetPrevStep(el) { this.wizSetStep(el, Math.max(this.wizCurrentStep(el) - 1, 1)); }
     wizSetNextStep(el) { this.wizSetStep(el, this.wizCurrentStep(el) + 1); }
@@ -6446,3 +6466,183 @@ class Firmware {
     }
 }
 var firmware = new Firmware();
+
+class LogViewer {
+    constructor() {
+        this.activeFilter = 'all';
+        this.searchText = '';
+        this.maxEntries = 500;
+        this.lines = [];
+        this.isJoined = false;
+        this.initialized = false;
+    }
+
+    init() {
+        if (this.initialized) return;
+        this.initialized = true;
+        this.loadConfig();
+    }
+
+    onTabActivated() {
+        this.init();
+        if (!this.isJoined && socket && socket.readyState === WebSocket.OPEN) {
+            socket.send('join:log');
+            this.isJoined = true;
+        }
+    }
+
+    onTabDeactivated() {
+        if (this.isJoined && socket && socket.readyState === WebSocket.OPEN) {
+            socket.send('leave:log');
+            this.isJoined = false;
+        }
+    }
+
+    setLevelFilter(lvl) {
+        this.activeFilter = lvl;
+        document.querySelectorAll('.btn-log-filter').forEach(btn => {
+            btn.classList.toggle('active', btn.getAttribute('data-lvl') === lvl);
+        });
+        this.filterChanged();
+    }
+
+    filterChanged() {
+        const input = get('txtLogSearch');
+        this.searchText = input ? input.value.toLowerCase() : '';
+        const consoleEl = get('divLogConsole');
+        if (!consoleEl) return;
+
+        const children = consoleEl.children;
+        for (let i = 0; i < children.length; i++) {
+            const child = children[i];
+            const text = child.textContent.toLowerCase();
+            const level = child.getAttribute('data-lvl') || '';
+
+            let matchLevel = (this.activeFilter === 'all') || (level === this.activeFilter);
+            let matchText = (!this.searchText) || text.includes(this.searchText);
+
+            child.style.display = (matchLevel && matchText) ? '' : 'none';
+        }
+    }
+
+    detectLevel(text) {
+        if (/\[ERROR\]|\[E\]/i.test(text)) return 'error';
+        if (/\[WARN\s*\]|\[W\]/i.test(text)) return 'warn';
+        if (/\[INFO\s*\]|\[I\]/i.test(text)) return 'info';
+        if (/\[DEBUG\]|\[D\]/i.test(text)) return 'debug';
+        if (/\[VERBO\s*\]|\[VERBOSE\]|\[V\]|\[TRACE\s*\]|\[T\]/i.test(text)) return 'verbose';
+
+        if (/\b(error|failed|failure)\b/i.test(text)) return 'error';
+        if (/\b(warn|warning)\b/i.test(text)) return 'warn';
+        if (/\b(debug)\b/i.test(text)) return 'debug';
+        if (/\b(verbose|trace)\b/i.test(text)) return 'verbose';
+        if (/\b(info|notice)\b/i.test(text)) return 'info';
+        return 'info';
+    }
+
+    procLog(msg) {
+        const consoleEl = get('divLogConsole');
+        if (!consoleEl) return;
+
+        const text = (typeof msg === 'string') ? msg : JSON.stringify(msg);
+        this.lines.push(text);
+        if (this.lines.length > this.maxEntries) {
+            this.lines.shift();
+        }
+
+        const div = document.createElement('div');
+        const lvl = this.detectLevel(text);
+        div.className = `log-entry log-${lvl}`;
+        div.setAttribute('data-lvl', lvl);
+        div.textContent = text;
+
+        let matchLevel = (this.activeFilter === 'all') || (lvl === this.activeFilter);
+        let matchText = (!this.searchText) || text.toLowerCase().includes(this.searchText);
+        if (!matchLevel || !matchText) {
+            div.style.display = 'none';
+        }
+
+        consoleEl.appendChild(div);
+
+        while (consoleEl.children.length > this.maxEntries) {
+            consoleEl.removeChild(consoleEl.firstChild);
+        }
+
+        const chk = get('chkLogAutoScroll');
+        if (chk && chk.checked) {
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+        }
+    }
+
+    clear() {
+        const consoleEl = get('divLogConsole');
+        if (consoleEl) consoleEl.innerHTML = '';
+        this.lines = [];
+    }
+
+    copy() {
+        const text = this.lines.join('\n');
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(text);
+        }
+    }
+
+    download() {
+        const text = this.lines.join('\n');
+        const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2, '0');
+        const d = String(now.getDate()).padStart(2, '0');
+        const h = String(now.getHours()).padStart(2, '0');
+        const min = String(now.getMinutes()).padStart(2, '0');
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `espsomfy-log-${y}${m}${d}-${h}${min}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(a.href);
+    }
+
+    loadConfig() {
+        getJSON('/logConfig', (err, data) => {
+            if (err || !data) {
+                console.error('Error loading log config:', err);
+                return;
+            }
+            if (data.serial && get('selLogLevelSerial')) get('selLogLevelSerial').value = data.serial.level;
+            if (data.ws && get('selLogLevelWS')) get('selLogLevelWS').value = data.ws.level;
+            if (data.syslog) {
+                if (get('selLogLevelSyslog')) get('selLogLevelSyslog').value = data.syslog.level;
+                if (get('txtSyslogHost')) get('txtSyslogHost').value = data.syslog.host || '';
+                if (get('numSyslogPort')) get('numSyslogPort').value = data.syslog.port || 514;
+            }
+            if (data.spiffs && get('selLogLevelSpiffs')) get('selLogLevelSpiffs').value = data.spiffs.level;
+        });
+    }
+
+    saveConfig() {
+        const payload = {
+            serial: { level: parseInt(get('selLogLevelSerial')?.value || 11, 10) },
+            ws: { level: parseInt(get('selLogLevelWS')?.value || 11, 10) },
+            syslog: {
+                level: parseInt(get('selLogLevelSyslog')?.value || 11, 10),
+                host: get('txtSyslogHost')?.value || '',
+                port: parseInt(get('numSyslogPort')?.value || 514, 10)
+            },
+            spiffs: { level: parseInt(get('selLogLevelSpiffs')?.value || 11, 10) }
+        };
+
+        putJSONSync('/logConfig', payload, (err, data) => {
+            if (err) {
+                console.error('Error saving log config:', err);
+                if (typeof ui !== 'undefined' && ui.serviceError) ui.serviceError(err);
+            } else {
+                if (typeof ui !== 'undefined' && ui.successMessage) ui.successMessage(tr('MSG_SAVE_SUCCESS'));
+            }
+        });
+    }
+}
+var logViewer = new LogViewer();
+

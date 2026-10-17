@@ -91,14 +91,16 @@ void loop() {
     ESP.restart();
   }
 
-  //{  //bug hunting. remove when stable
-  //  static uint32_t t0 = 0;
-  //  if (!t0 || millis() - t0 > 10*1*1000UL) {
-  //    t0 = millis();
-  //    LOG_D_PRINTF("millis(): %ld (0x%08x)\n", millis(), millis());
-  //    LOG_E_PRINTF("millis(): %ld (0x%08x)\n", millis(), millis());
-  //    LOG_I_PRINTF("millis(): %ld (0x%08x)\n", millis(), millis());
-  //  }
-  //}
+  {  //bug hunting. remove when stable
+    static uint32_t t0 = 0;
+    if (!t0 || millis() - t0 > 5*100UL) {
+      t0 = millis();
+      LOG_D_PRINTF("millis(): %ld (0x%08x)", millis(), millis());
+      LOG_I_PRINTF("millis(): %ld (0x%08x)", millis(), millis());      
+      LOG_W_PRINTF("millis(): %ld (0x%08x)", millis(), millis());
+      LOG_E_PRINTF("millis(): %ld (0x%08x)", millis(), millis());
+      LOG_V_HEX("LOG_V_HEX", (const uint8_t*) &timing, 30);      
+    }
+  }
   esp_task_wdt_reset();
 }

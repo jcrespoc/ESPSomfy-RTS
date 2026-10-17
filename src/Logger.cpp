@@ -34,10 +34,6 @@ void log(uint8_t logId, uint8_t logLevel, const char* format, ...) {
 void log(uint8_t logId, uint8_t logLevel, const __FlashStringHelper* format, ...) {
   #ifdef ESP32
     if (xPortInIsrContext()) {
-      // When called from an ISR, you should not send out logs.
-      // Allocating memory from within an ISR is a big no-no.
-      // Also long-time blocking like sending logs (especially to a syslog server) 
-      // is also really not a good idea from an ISR call.
       return;
     }
   #endif
@@ -47,14 +43,10 @@ void log(uint8_t logId, uint8_t logLevel, const __FlashStringHelper* format, ...
 void logHex(uint8_t logId, uint8_t logLevel, const char* message, const uint8_t* data, uint16_t length) {
   #ifdef ESP32
     if (xPortInIsrContext()) {
-      // When called from an ISR, you should not send out logs.
-      // Allocating memory from within an ISR is a big no-no.
-      // Also long-time blocking like sending logs (especially to a syslog server) 
-      // is also really not a good idea from an ISR call.
       return;
     }
   #endif
-  Logger.logHex(logId, logLevel, message, data, length);
+  Logger.logHex(logId, logLevel, message, data, length);  
 }
 
 void logRoute(uint8_t level, const char *str) {
@@ -102,7 +94,7 @@ void logRoute(uint8_t level, const String str) {
   #endif
 }
 
-void logRoute(uint8_t level, const char *str, const void *buff, size_t len) {
+void logRouteHex(uint8_t level, const char *str, const void *buff, size_t len) {
   #ifndef ELOG_SERIAL_DISABLED
   logHex(MAINLOG,  level, str, (const uint8_t*) buff, len);
   #endif
@@ -117,12 +109,18 @@ void logRoute(uint8_t level, const char *str, const void *buff, size_t len) {
   #endif
 }
 
+void logRoute(uint8_t level, const char *str, const void *buff, size_t len) {
+  logRouteHex(level, str, buff, len);
+}
+
 void LoggerInit() {
   #ifndef ELOG_SERIAL_DISABLED
   Logger.registerSerial(MAINLOG, ELOG_SERIAL_LEVEL, "Serial", RealHardwareSerial,  ELOG_FLAG_NO_SERVICE | ELOG_FLAG_TIME_SHORT);
 
+  #ifdef ELOG_INTERNAL_LOGGING_ENABLED
   Logger.configureInternalLogging(RealHardwareSerial, ELOG_LEVEL_INFO, 60*1000);
-  //Logger.enableQuery(RealHardwareSerial);
+  Logger.enableQuery(RealHardwareSerial);  
+  #endif
   #endif
 
   #ifdef ELOG_WS_ENABLE
@@ -138,5 +136,26 @@ void LoggerInit() {
   #ifdef ELOG_SPIFFS_ENABLE
   Logger.configureSpiffs(2);
   Logger.registerSpiffs(FILELOG, ELOG_SPIFFS_LEVEL, "espsomfy", ELOG_FLAG_NO_SERVICE, 10000);
+  #endif
+}
+
+void applyLogSettings(const LogSettings& cfg) {
+  #ifndef ELOG_SERIAL_DISABLED
+  Logger.setSerialLogLevel(MAINLOG, cfg.serialLevel, RealHardwareSerial);
+  #endif
+
+  #ifdef ELOG_WS_ENABLE
+  Logger.setSerialLogLevel(WSLOG, cfg.wsLevel, wsLogStream);
+  #endif
+
+  #ifdef ELOG_SYSLOG_ENABLE
+  if (strlen(cfg.syslogHost) > 0) {
+    Logger.setSyslogServer(cfg.syslogHost, cfg.syslogPort);
+  }
+  Logger.setSyslogLogLevel(SYSLOG, cfg.syslogLevel, ELOG_FAC_SYSLOG);
+  #endif
+
+  #ifdef ELOG_SPIFFS_ENABLE
+  Logger.setSpiffsLogLevel(FILELOG, cfg.spiffsLevel, "espsomfy");
   #endif
 }
