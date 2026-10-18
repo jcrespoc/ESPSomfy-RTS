@@ -1,4 +1,4 @@
-﻿:root {
+:root {
     color-scheme: light dark;
     --accent-color: #1a5fb4;
     --accent-colorDark: color-mix(in srgb, var(--accent-color), #000 34%);
@@ -218,6 +218,80 @@ form {
     border-radius: 0;
 }
 .unibloc > div {position: relative;}
+.timingRow {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+    gap: 8px;
+}
+.timingInput {
+    flex: 1;
+    min-width: 0;
+    position: relative;
+}
+.timingHint {
+    font-size: 11px;
+    color: var(--soustxt-color);
+    line-height: 1.25;
+    text-align: right;
+    max-width: 180px;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateX(4px);
+    transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s ease;
+    pointer-events: none;
+    user-select: none;
+}
+.timingHint.visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(0);
+}
+.timingHint.measuring {
+    color: #e74c3c;
+    font-weight: 600;
+}
+.timingAction {
+    margin-left: 2px;
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+.btnCal {
+    width: auto;
+    min-width: 55px;
+    height: 32px;
+    padding: 0 12px;
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 16px;
+    background: var(--button2-color, #4a4a4a);
+    color: #fff;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    user-select: none;
+    line-height: 1;
+    letter-spacing: 0.5px;
+}
+.btnCal:hover {
+    background: var(--accent-color);
+    border-color: var(--accent-color);
+}
+.btnCal.measuring {
+    background: #d9534f !important;
+    border-color: #d9534f !important;
+    color: #fff !important;
+    animation: calPulse 1s infinite alternate;
+}
+@keyframes calPulse {
+    from { opacity: 1; transform: scale(1); }
+    to { opacity: 0.75; transform: scale(0.96); }
+}
 
 .firmwarblocupdate,
 .divButton {
