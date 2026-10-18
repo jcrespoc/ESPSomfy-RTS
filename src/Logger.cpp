@@ -23,6 +23,18 @@
 #ifdef ELOG_SYSLOG_ENABLE
 extern ConfigSettings settings;
 #endif
+#ifdef ELOG_SPIFFS_ENABLE
+extern ConfigSettings settings;
+#endif
+
+const char* LOG_LEVEL_TO_STRING(uint8_t level) {
+  return (level == LOG_LEVEL_ERROR ? "ERROR" :
+          level == LOG_LEVEL_WARNING ? "WARNING" :
+          level == LOG_LEVEL_INFO ? "INFO" :
+          level == LOG_LEVEL_DEBUG ? "DEBUG" :
+          level == LOG_LEVEL_VERBOSE ? "VERBOSE" :
+          level == LOG_LEVEL_NOLOG ? "DISABLED" : "UNKNOWN");
+}
 
 void log(uint8_t logId, uint8_t logLevel, const char* format, ...) {
   if (xPortInIsrContext()) {
@@ -114,12 +126,15 @@ void logRoute(uint8_t level, const char *str, const void *buff, size_t len) {
 }
 
 void LoggerInit() {
-  #ifndef ELOG_SERIAL_DISABLED
+  #ifdef ELOG_SERIAL_DISABLED
   Logger.registerSerial(MAINLOG, ELOG_SERIAL_LEVEL, "Serial", RealHardwareSerial,  ELOG_FLAG_NO_SERVICE | ELOG_FLAG_TIME_SHORT);
 
   #ifdef ELOG_INTERNAL_LOGGING_ENABLED
   Logger.configureInternalLogging(RealHardwareSerial, ELOG_LEVEL_INFO, 60*1000);
-  Logger.enableQuery(RealHardwareSerial);  
+  #endif
+  
+  #ifdef ELOG_QUERY_ENABLED
+  Logger.enableQuery(RealHardwareSerial);
   #endif
   #endif
 
@@ -134,24 +149,30 @@ void LoggerInit() {
   #endif // ELOG_SYSLOG_ENABLE
 
   #ifdef ELOG_SPIFFS_ENABLE
-  Logger.configureSpiffs(2);
-  Logger.registerSpiffs(FILELOG, ELOG_SPIFFS_LEVEL, "espsomfy", ELOG_FLAG_NO_SERVICE, 10000);
+  #ifndef ELOG_SPIFFS_FILESIZE
+  #define ELOG_SPIFFS_FILESIZE 100*1024 // 100 KB
+  #endif
+  Logger.configureSpiffs();
+  Logger.registerSpiffs(FILELOG, ELOG_SPIFFS_LEVEL, "espsomfy", ELOG_FLAG_NO_SERVICE, ELOG_SPIFS_FILESIZE);
   #endif
 }
 
-void applyLogSettings(const LogSettings& cfg) {
+void applyLogSettings(const LogSettings& cfg) {  
   #ifndef ELOG_SERIAL_DISABLED
+  Logger.log(MAINLOG, ELOG_LEVEL_INFO, "LOGLEVEL %s", LOG_LEVEL_TO_STRING(cfg.serialLevel));
   Logger.setSerialLogLevel(MAINLOG, cfg.serialLevel, RealHardwareSerial);
   #endif
 
   #ifdef ELOG_WS_ENABLE
+  Logger.log(WSLOG, ELOG_LEVEL_INFO, "LOGLEVEL %s", LOG_LEVEL_TO_STRING(cfg.wsLevel));
   Logger.setSerialLogLevel(WSLOG, cfg.wsLevel, wsLogStream);
   #endif
 
   #ifdef ELOG_SYSLOG_ENABLE
-  if (strlen(cfg.syslogHost) > 0) {
+  if (strlen(cfg.syslogHost) > 0) {    
     Logger.setSyslogServer(cfg.syslogHost, cfg.syslogPort);
   }
+  Logger.log(SYSLOG, ELOG_LEVEL_INFO, "LOGLEVEL %s", LOG_LEVEL_TO_STRING(cfg.syslogLevel));
   Logger.setSyslogLogLevel(SYSLOG, cfg.syslogLevel, ELOG_FAC_SYSLOG);
   #endif
 

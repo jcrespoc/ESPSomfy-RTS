@@ -498,6 +498,16 @@
                     </div>
                     <div id="divSystemLogs" class="subtab-content" style="display:none;">
                         <div class="unibloc">
+                            <div class="log-source-row">
+                                <div class="log-source-wrap">
+                                    <select id="selLogSource" class="log-select-source" onchange="logViewer.onSourceChange(this.value)" onfocus="logViewer.checkRefreshFiles()" onpointerdown="logViewer.checkRefreshFiles()" /*onmouseenter="logViewer.checkRefreshFiles()"*/>
+                                        <option value="live" tr="LOG_SOURCE_LIVE">● En vivo</option>
+                                    </select>
+                                    <button type="button" id="btnRefreshLogFiles" class="btn-log-refresh" onclick="logViewer.refresh();" title="Actualizar" tr="LOG_REFRESH_FILES">
+                                        <svg><use href="#svg-update"></use></svg>
+                                    </button>
+                                </div>
+                            </div>
                             <div class="log-toolbar">
                                 <div class="log-filters">
                                     <button type="button" class="btn-log-filter active" data-lvl="all" onclick="logViewer.setLevelFilter('all');" tr="LOG_FILTER_ALL">All</button>
@@ -508,7 +518,7 @@
                                     <button type="button" class="btn-log-filter" data-lvl="verbose" onclick="logViewer.setLevelFilter('verbose');" tr="LOG_FILTER_VERBOSE">Verbose</button>
                                 </div>
                                 <div class="log-search-box">
-                                    <input type="text" id="txtLogSearch" class="inputAndSelect" tr="LOG_SEARCH_PLACEHOLDER" placeholder="Search..." oninput="logViewer.filterChanged();" />
+                                    <input type="text" id="txtLogSearch" class="log-search-input" tr="LOG_SEARCH_PLACEHOLDER" placeholder="Search..." oninput="logViewer.filterChanged();" />
                                 </div>
                                 <label class="log-autoscroll" for="chkLogAutoScroll">
                                     <span class="switch">

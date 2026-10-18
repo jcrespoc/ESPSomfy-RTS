@@ -1,6 +1,8 @@
 #ifndef _LOGGER_H
 #define _LOGGER_H
 
+#include <Elog.h>
+
 #define LOG_LEVEL_ERROR      4
 #define LOG_LEVEL_WARNING    5
 #define LOG_LEVEL_INFO       7
@@ -18,28 +20,8 @@
 #define ELOG_SERIAL_LEVEL LOG_LEVEL_NOLOG
 #endif
 #ifndef ELOG_WS_LEVEL
-  #ifdef ELOG_WS_ENABLE
-    #define ELOG_WS_LEVEL LOG_LEVEL_INFO
-  #else
-    #define ELOG_WS_LEVEL LOG_LEVEL_NOLOG
-  #endif
+#define ELOG_WS_LEVEL LOG_LEVEL_NOLOG
 #endif
-
-#if ELOG_SERIAL_LEVEL < LOG_LEVEL_NOLOG
-#undef ELOG_SERIAL_DISABLED
-#else
-#define ELOG_SERIAL_DISABLED
-#endif
-
-#if ELOG_WS_LEVEL < LOG_LEVEL_NOLOG
-  #ifndef ELOG_WS_ENABLE
-    #define ELOG_WS_ENABLE
-  #endif
-#endif
-
-
-#include <Elog.h>
-
 
 #define MAINLOG 0
 #define SYSLOG 1
@@ -49,6 +31,7 @@
 void LoggerInit();
 class LogSettings;
 void applyLogSettings(const LogSettings& cfg);
+const char* LOG_LEVEL_TO_STRING(uint8_t level);
 
 template <typename Fmt, typename... Args>
 inline void logRoute(uint8_t level, Fmt format, Args... args) {

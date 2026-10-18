@@ -1668,6 +1668,74 @@ div.frame-pulses {
 /* ========================================================
    LOG CONSOLE & VIEWER
    ======================================================== */
+.log-source-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+}
+.log-source-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    max-width: 540px;
+}
+.unibloc select.log-select-source,
+select.log-select-source,
+.log-select-source {
+    margin: 0 !important;
+    padding: 6px 36px 6px 12px !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    line-height: 24px !important;
+    font-size: 13px !important;
+    color: var(--color) !important;
+    background-color: var(--input, rgba(127, 127, 127, 0.12)) !important;
+    border: 1px solid var(--border-color, rgba(127, 127, 127, 0.3)) !important;
+    border-radius: 6px !important;
+    box-sizing: border-box !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    appearance: none !important;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23888888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 10px center !important;
+    cursor: pointer;
+    flex: 1;
+    min-width: 0;
+}
+.unibloc select.log-select-source:focus,
+select.log-select-source:focus {
+    border-color: var(--accent-color, #1a5fb4) !important;
+    outline: none;
+}
+.btn-log-refresh {
+    background: transparent;
+    border: 1px solid var(--border-color, rgba(127, 127, 127, 0.3));
+    border-radius: 6px;
+    padding: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--color);
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    min-height: 38px;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+.btn-log-refresh:hover {
+    background: var(--hover-bg, rgba(127, 127, 127, 0.15));
+    border-color: var(--accent-color, #1a5fb4);
+}
+.btn-log-refresh svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+}
 .log-toolbar {
     display: flex;
     flex-wrap: wrap;
@@ -1706,11 +1774,24 @@ div.frame-pulses {
     flex: 1;
     min-width: 140px;
 }
-.log-search-box input {
+.unibloc .log-search-input,
+.log-search-input {
+    margin: 0 !important;
+    padding: 6px 10px !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    font-size: 12px !important;
+    color: var(--color) !important;
+    background: var(--input, rgba(127, 127, 127, 0.12)) !important;
+    border: 1px solid var(--border-color, rgba(127, 127, 127, 0.3)) !important;
+    border-radius: 5px !important;
     width: 100%;
     box-sizing: border-box;
-    padding: 6px 10px;
-    font-size: 12px;
+}
+.unibloc .log-search-input:focus,
+.log-search-input:focus {
+    border-color: var(--accent-color, #1a5fb4) !important;
+    outline: none;
 }
 .log-autoscroll {
     font-size: 12px;

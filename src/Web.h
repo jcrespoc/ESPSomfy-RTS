@@ -35,6 +35,8 @@ public:
   void handleBackup(WebServer &server, bool attach = false);
   void handleReboot(WebServer &server);
   void handleDeserializationError(WebServer &server, DeserializationError &err);
+  void handleLogFiles(WebServer &server);
+  void handleLogFile(WebServer &server);
   void begin();
   void loop();
   void end();

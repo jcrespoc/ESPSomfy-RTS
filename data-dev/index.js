@@ -6464,17 +6464,55 @@ class LogViewer {
         this.lines = [];
         this.isJoined = false;
         this.initialized = false;
+        this.currentSource = 'live';
+        this.fileLines = [];
+        this.filesList = [];
+        this.lastFilesFetchTime = 0;
+        this.isFetchingFiles = false;
+        this.selectEventsBound = false;
     }
 
     init() {
         if (this.initialized) return;
         this.initialized = true;
         this.loadConfig();
+        this.loadFilesList();
+        if (!this.selectEventsBound) {
+            this.bindSelectEvents();
+        }
+    }
+
+    bindSelectEvents() {
+        const sel = get('selLogSource');
+        if (!sel) return;
+        this.selectEventsBound = true;
+        let clickCount = 0;
+        sel.addEventListener('focus', () => { clickCount = 0; });
+        sel.addEventListener('blur', () => { clickCount = 0; });
+        sel.addEventListener('change', () => { clickCount = 0; });
+        sel.addEventListener('click', () => {
+            clickCount++;
+            if (clickCount >= 2) {
+                clickCount = 0;
+                if (this.currentSource && this.currentSource !== 'live' && sel.value === this.currentSource) {
+                    this.onSourceChange(sel.value, true);
+                }
+            }
+        });
+        sel.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                clickCount = 0;
+                if (this.currentSource && this.currentSource !== 'live' && sel.value === this.currentSource) {
+                    this.onSourceChange(sel.value, true);
+                }
+            }
+        });
     }
 
     onTabActivated() {
         this.init();
-        if (!this.isJoined && socket && socket.readyState === WebSocket.OPEN) {
+        this.checkRefreshFiles();
+        if (this.currentSource === 'live' && !this.isJoined && socket && socket.readyState === WebSocket.OPEN) {
             socket.send('join:log');
             this.isJoined = true;
         }
@@ -6484,6 +6522,233 @@ class LogViewer {
         if (this.isJoined && socket && socket.readyState === WebSocket.OPEN) {
             socket.send('leave:log');
             this.isJoined = false;
+        }
+    }
+
+    checkRefreshFiles() {
+        const now = Date.now();
+        if (this.isFetchingFiles) return;
+        if (now - this.lastFilesFetchTime < 1000) return;
+        this.loadFilesList(false);
+    }
+
+    refresh(showFeedback = false) {
+        this.loadFilesList(showFeedback);
+        if (this.currentSource && this.currentSource !== 'live') {
+            this.loadFile(this.currentSource, true);
+        }
+    }
+
+    loadFilesList(showFeedback) {
+        this.lastFilesFetchTime = Date.now();
+        this.isFetchingFiles = true;
+        getJSON('/logFiles', (err, files) => {
+            this.isFetchingFiles = false;
+            if (err) {
+                console.error('Error fetching log files:', err);
+                if (showFeedback && typeof ui !== 'undefined' && ui.serviceError) ui.serviceError(err);
+                return;
+            }
+            const newFiles = Array.isArray(files) ? files : [];
+            const sel = get('selLogSource');
+            if (!sel) return;
+
+            newFiles.sort((a, b) => {
+                const nameA = a.name || a.path || '';
+                const nameB = b.name || b.path || '';
+                if (nameA !== nameB) return (nameA > nameB) ? -1 : 1;
+                return (b.time || 0) - (a.time || 0);
+            });
+
+            // If files list is identical and select already has options, avoid rebuilding DOM
+            const isSame = (this.filesList.length === newFiles.length) &&
+                this.filesList.every((f, i) => f.path === newFiles[i].path && f.size === newFiles[i].size);
+
+            this.filesList = newFiles;
+
+            if (isSame && sel.options.length > 1) {
+                if (showFeedback && typeof ui !== 'undefined' && ui.successMessage) {
+                    ui.successMessage(tr('MSG_SAVE_SUCCESS'));
+                }
+                return;
+            }
+
+            const prevValue = this.currentSource;
+            sel.innerHTML = '';
+
+            const optLive = document.createElement('option');
+            optLive.value = 'live';
+            optLive.textContent = tr('LOG_SOURCE_LIVE');
+            optLive.onclick = () => {
+                if (this.currentSource === 'live') {
+                    this.renderLiveLines();
+                }
+            };
+            sel.appendChild(optLive);
+
+            if (this.filesList.length === 0) {
+                const optNone = document.createElement('option');
+                optNone.value = '';
+                optNone.disabled = true;
+                optNone.textContent = `(${tr('LOG_NO_FILES')})`;
+                sel.appendChild(optNone);
+            } else {
+                this.filesList.forEach(file => {
+                    const opt = document.createElement('option');
+                    opt.value = file.path;
+                    opt.onclick = () => {
+                        if (this.currentSource && this.currentSource !== 'live' && this.currentSource === file.path) {
+                            this.onSourceChange(file.path, true);
+                        }
+                    };
+
+                    let timeStr = '';
+                    if (file.time && file.time > 100000) {
+                        const d = new Date(file.time * 1000);
+                        const yyyy = d.getFullYear();
+                        const mm = String(d.getMonth() + 1).padStart(2, '0');
+                        const dd = String(d.getDate()).padStart(2, '0');
+                        const hh = String(d.getHours()).padStart(2, '0');
+                        const min = String(d.getMinutes()).padStart(2, '0');
+                        const sec = String(d.getSeconds()).padStart(2, '0');
+                        timeStr = `${yyyy}-${mm}-${dd} ${hh}:${min}:${sec} - `;
+                    }
+
+                    let sizeStr = '';
+                    if (file.size !== undefined) {
+                        if (file.size >= 1024) sizeStr = ` (${(file.size / 1024).toFixed(1)} KB)`;
+                        else sizeStr = ` (${file.size} B)`;
+                    }
+
+                    const displayName = file.name || (file.path ? file.path.replace(/^\/logs\//, '') : 'log');
+                    opt.textContent = `${timeStr}${displayName}${sizeStr}`;
+                    sel.appendChild(opt);
+                });
+            }
+
+            if ([...sel.options].some(o => o.value === prevValue)) {
+                sel.value = prevValue;
+            } else {
+                sel.value = 'live';
+                this.currentSource = 'live';
+            }
+
+            if (showFeedback && typeof ui !== 'undefined' && ui.successMessage) {
+                ui.successMessage(tr('MSG_SAVE_SUCCESS'));
+            }
+        });
+    }
+
+    onSourceChange(val, forceReload = false) {
+        if (!val) return;
+        const isSameSource = (val === this.currentSource);
+        this.currentSource = val;
+
+        if (val === 'live') {
+            if (!this.isJoined && socket && socket.readyState === WebSocket.OPEN) {
+                socket.send('join:log');
+                this.isJoined = true;
+            }
+            this.renderLiveLines();
+        } else {
+            if (this.isJoined && socket && socket.readyState === WebSocket.OPEN) {
+                socket.send('leave:log');
+                this.isJoined = false;
+            }
+            this.loadFile(val, isSameSource || forceReload);
+        }
+    }
+
+    renderLiveLines() {
+        const consoleEl = get('divLogConsole');
+        if (!consoleEl) return;
+        consoleEl.innerHTML = '';
+        const frag = document.createDocumentFragment();
+        for (let i = 0; i < this.lines.length; i++) {
+            const text = this.lines[i];
+            const div = document.createElement('div');
+            const lvl = this.detectLevel(text);
+            div.className = `log-entry log-${lvl}`;
+            div.setAttribute('data-lvl', lvl);
+            div.textContent = text;
+
+            let matchLevel = (this.activeFilter === 'all') || (lvl === this.activeFilter);
+            let matchText = (!this.searchText) || text.toLowerCase().includes(this.searchText);
+            if (!matchLevel || !matchText) div.style.display = 'none';
+            frag.appendChild(div);
+        }
+        consoleEl.appendChild(frag);
+
+        const chk = get('chkLogAutoScroll');
+        if (chk && chk.checked) {
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+        }
+    }
+
+    loadFile(filePath, isReload = false) {
+        const consoleEl = get('divLogConsole');
+        if (!isReload && consoleEl) {
+            consoleEl.innerHTML = `<div class="log-entry log-info">${tr('LOG_LOADING_FILE')}</div>`;
+        }
+
+        const savedScrollTop = consoleEl ? consoleEl.scrollTop : 0;
+
+        let xhr = new XMLHttpRequest();
+        let url = baseUrl.length > 0 ? `${baseUrl}/logFile?file=${encodeURIComponent(filePath)}` : `/logFile?file=${encodeURIComponent(filePath)}`;
+        xhr.open('GET', url, true);
+        xhr.setRequestHeader('apikey', security.apiKey);
+        xhr.onload = () => {
+            if (xhr.status === 200) {
+                const text = xhr.responseText || '';
+                this.fileLines = text.split(/\r?\n/);
+                this.renderFileLines(isReload, savedScrollTop);
+            } else {
+                if (consoleEl && !isReload) {
+                    consoleEl.innerHTML = `<div class="log-entry log-error">${tr('LOG_ERR_LOAD_FILE')}: ${xhr.status} ${xhr.statusText}</div>`;
+                }
+            }
+        };
+        xhr.onerror = () => {
+            if (consoleEl && !isReload) {
+                consoleEl.innerHTML = `<div class="log-entry log-error">${tr('LOG_ERR_LOAD_FILE')}</div>`;
+            }
+        };
+        xhr.send();
+    }
+
+    renderFileLines(isReload = false, savedScrollTop = 0) {
+        const consoleEl = get('divLogConsole');
+        if (!consoleEl) return;
+        consoleEl.innerHTML = '';
+        const frag = document.createDocumentFragment();
+
+        for (let i = 0; i < this.fileLines.length; i++) {
+            const line = this.fileLines[i];
+            if (!line && i === this.fileLines.length - 1) continue;
+
+            const div = document.createElement('div');
+            const lvl = this.detectLevel(line);
+            div.className = `log-entry log-${lvl}`;
+            div.setAttribute('data-lvl', lvl);
+            div.textContent = line;
+
+            let matchLevel = (this.activeFilter === 'all') || (lvl === this.activeFilter);
+            let matchText = (!this.searchText) || line.toLowerCase().includes(this.searchText);
+            if (!matchLevel || !matchText) {
+                div.style.display = 'none';
+            }
+
+            frag.appendChild(div);
+        }
+        consoleEl.appendChild(frag);
+
+        const chk = get('chkLogAutoScroll');
+        if (chk && chk.checked) {
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+        } else if (isReload) {
+            consoleEl.scrollTop = savedScrollTop;
+        } else {
+            consoleEl.scrollTop = 0;
         }
     }
 
@@ -6530,14 +6795,16 @@ class LogViewer {
     }
 
     procLog(msg) {
-        const consoleEl = get('divLogConsole');
-        if (!consoleEl) return;
-
         const text = (typeof msg === 'string') ? msg : JSON.stringify(msg);
         this.lines.push(text);
         if (this.lines.length > this.maxEntries) {
             this.lines.shift();
         }
+
+        if (this.currentSource !== 'live') return;
+
+        const consoleEl = get('divLogConsole');
+        if (!consoleEl) return;
 
         const div = document.createElement('div');
         const lvl = this.detectLevel(text);
@@ -6566,32 +6833,52 @@ class LogViewer {
     clear() {
         const consoleEl = get('divLogConsole');
         if (consoleEl) consoleEl.innerHTML = '';
-        this.lines = [];
+        if (this.currentSource === 'live') {
+            this.lines = [];
+        } else {
+            this.fileLines = [];
+        }
     }
 
     copy() {
-        const text = this.lines.join('\n');
+        const linesToCopy = (this.currentSource === 'live') ? this.lines : this.fileLines;
+        const text = linesToCopy.join('\n');
         if (navigator.clipboard) {
             navigator.clipboard.writeText(text);
         }
     }
 
     download() {
-        const text = this.lines.join('\n');
-        const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-        const now = new Date();
-        const y = now.getFullYear();
-        const m = String(now.getMonth() + 1).padStart(2, '0');
-        const d = String(now.getDate()).padStart(2, '0');
-        const h = String(now.getHours()).padStart(2, '0');
-        const min = String(now.getMinutes()).padStart(2, '0');
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `espsomfy-log-${y}${m}${d}-${h}${min}.txt`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(a.href);
+        if (this.currentSource === 'live') {
+            const text = this.lines.join('\n');
+            const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+            const now = new Date();
+            const y = now.getFullYear();
+            const m = String(now.getMonth() + 1).padStart(2, '0');
+            const d = String(now.getDate()).padStart(2, '0');
+            const h = String(now.getHours()).padStart(2, '0');
+            const min = String(now.getMinutes()).padStart(2, '0');
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `espsomfy-log-${y}${m}${d}-${h}${min}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(a.href);
+        } else {
+            const text = this.fileLines.join('\n');
+            const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+            let fname = this.currentSource.replace(/^\/+/, '').replace(/\//g, '-');
+            if (!fname.endsWith('.log') && !fname.endsWith('.txt')) fname += '.log';
+
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = fname;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(a.href);
+        }
     }
 
     loadConfig() {
