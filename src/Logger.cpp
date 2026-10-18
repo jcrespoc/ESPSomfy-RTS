@@ -153,7 +153,7 @@ void LoggerInit() {
   #define ELOG_SPIFFS_FILESIZE 100*1024 // 100 KB
   #endif
   Logger.configureSpiffs();
-  Logger.registerSpiffs(FILELOG, ELOG_SPIFFS_LEVEL, "espsomfy", ELOG_FLAG_NO_SERVICE, ELOG_SPIFS_FILESIZE);
+  Logger.registerSpiffs(FILELOG, ELOG_SPIFFS_LEVEL, "espsomfy", ELOG_FLAG_NO_SERVICE, ELOG_SPIFFS_FILESIZE);
   #endif
 }
 
