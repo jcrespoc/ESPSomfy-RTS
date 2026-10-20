@@ -6726,7 +6726,7 @@ class LogViewer {
                         }
                     };
 
-                    let timeStr = '';
+                    let timeStr = '????-??-?? ??:??:?? - ';
                     if (file.time && file.time > 100000) {
                         const d = new Date(file.time * 1000);
                         const yyyy = d.getFullYear();
