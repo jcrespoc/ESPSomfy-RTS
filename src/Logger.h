@@ -31,51 +31,30 @@
 void LoggerInit();
 class LogSettings;
 void applyLogSettings(const LogSettings& cfg);
-const char* LOG_LEVEL_TO_STRING(uint8_t level);
 
-template <typename Fmt, typename... Args>
-inline void logRoute(uint8_t level, Fmt format, Args... args) {
-  #ifndef ELOG_SERIAL_DISABLED
-    Logger.log(MAINLOG, level, format, args...);
-  #endif
-  #ifdef ELOG_SYSLOG_ENABLE
-    Logger.log(SYSLOG, level, format, args...);
-  #endif
-  #ifdef ELOG_SPIFFS_ENABLE
-    Logger.log(FILELOG, level, format, args...);
-  #endif
-  #ifdef ELOG_WS_ENABLE
-    Logger.log(WSLOG, level, format, args...);
-  #endif
-}
 
-void logRoute(uint8_t level, const char *str);
-void logRoute(uint8_t level, const __FlashStringHelper *str);
-void logRoute(uint8_t level, const String str);
-void logRoute(uint8_t level, const char *str, const void *buff, size_t len);
-void logRouteHex(uint8_t level, const char *str, const void *buff, size_t len);
+void log(uint8_t level, const char *format, ...);
+void log(uint8_t level, const char *str);
+void log(uint8_t level, const __FlashStringHelper *str);
+void log(uint8_t level, const String str);
+void log(uint8_t level, const char *str, const void *buff, size_t len);
 
-template <typename T>
-inline void logRoute(uint8_t level, const char *str, const T *buff, size_t len) {
-  logRouteHex(level, str, (const void*)buff, len);
-}
+#define LOG_E_PRINTF(fmt, ...) log(ELOG_LEVEL_ERROR, fmt, ##__VA_ARGS__)
+#define LOG_W_PRINTF(fmt, ...) log(ELOG_LEVEL_WARNING, fmt, ##__VA_ARGS__)
+#define LOG_I_PRINTF(fmt, ...) log(ELOG_LEVEL_INFO, fmt, ##__VA_ARGS__)
+#define LOG_D_PRINTF(fmt, ...) log(ELOG_LEVEL_DEBUG, fmt, ##__VA_ARGS__)
+#define LOG_V_PRINTF(fmt, ...) log(ELOG_LEVEL_VERBOSE, fmt, ##__VA_ARGS__)
 
-#define LOG_E_PRINTF(fmt, ...) logRoute(ELOG_LEVEL_ERROR, fmt, ##__VA_ARGS__)
-#define LOG_W_PRINTF(fmt, ...) logRoute(ELOG_LEVEL_WARNING, fmt, ##__VA_ARGS__)
-#define LOG_I_PRINTF(fmt, ...) logRoute(ELOG_LEVEL_INFO, fmt, ##__VA_ARGS__)
-#define LOG_D_PRINTF(fmt, ...) logRoute(ELOG_LEVEL_DEBUG, fmt, ##__VA_ARGS__)
-#define LOG_V_PRINTF(fmt, ...) logRoute(ELOG_LEVEL_VERBOSE, fmt, ##__VA_ARGS__)
+#define LOG_E_PRINTLN(str) log(ELOG_LEVEL_ERROR, str)
+#define LOG_W_PRINTLN(str) log(ELOG_LEVEL_WARNING, str)
+#define LOG_I_PRINTLN(str) log(ELOG_LEVEL_INFO, str)
+#define LOG_D_PRINTLN(str) log(ELOG_LEVEL_DEBUG, str)
+#define LOG_V_PRINTLN(str) log(ELOG_LEVEL_VERBOSE, str)
 
-#define LOG_E_PRINTLN(str) logRoute(ELOG_LEVEL_ERROR, str)
-#define LOG_W_PRINTLN(str) logRoute(ELOG_LEVEL_WARNING, str)
-#define LOG_I_PRINTLN(str) logRoute(ELOG_LEVEL_INFO, str)
-#define LOG_D_PRINTLN(str) logRoute(ELOG_LEVEL_DEBUG, str)
-#define LOG_V_PRINTLN(str) logRoute(ELOG_LEVEL_VERBOSE, str)
-
-#define LOG_E_HEX(str, buff, len) logRouteHex(ELOG_LEVEL_ERROR, str, buff, len)
-#define LOG_W_HEX(str, buff, len) logRouteHex(ELOG_LEVEL_WARNING, str, buff, len)
-#define LOG_I_HEX(str, buff, len) logRouteHex(ELOG_LEVEL_INFO, str, buff, len)
-#define LOG_D_HEX(str, buff, len) logRouteHex(ELOG_LEVEL_DEBUG, str, buff, len)
-#define LOG_V_HEX(str, buff, len) logRouteHex(ELOG_LEVEL_VERBOSE, str, buff, len)
+#define LOG_E_HEX(str, buff, len) log(ELOG_LEVEL_ERROR, str, buff, len)
+#define LOG_W_HEX(str, buff, len) log(ELOG_LEVEL_WARNING, str, buff, len)
+#define LOG_I_HEX(str, buff, len) log(ELOG_LEVEL_INFO, str, buff, len)
+#define LOG_D_HEX(str, buff, len) log(ELOG_LEVEL_DEBUG, str, buff, len)
+#define LOG_V_HEX(str, buff, len) log(ELOG_LEVEL_VERBOSE, str, buff, len)
 
 #endif //_LOGGER_H
