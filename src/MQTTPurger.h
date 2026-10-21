@@ -15,10 +15,12 @@ enum class MQTTPurgeState : uint8_t {
 };
 
 typedef bool (*PurgeFilterFn)(const char* topic, const byte* payload, size_t length);
+typedef void (*PurgeActionFn)(const char* topic);
 
 struct PurgeRule {
   String topicPattern;
   PurgeFilterFn shouldPurge;
+  PurgeActionFn action;
   String description;
 };
 
@@ -32,14 +34,17 @@ private:
   MQTTPurgeState state = MQTTPurgeState::Idle;
   uint32_t timer = 0;
   std::vector<PurgeRule> rules;
-  std::vector<String> queue;
+  std::vector<std::pair<String, PurgeActionFn>> queue;
+
+  #ifdef PURGEMANAGER_ONERUN
   bool executedOnce = false;
+  #endif
 
   void subscribeAll(PubSubClient& client);
   void unsubscribeAll(PubSubClient& client);
 
 public:
-  void addRule(const char* topicPattern, PurgeFilterFn shouldPurge, const char* description = nullptr);
+  void addRule(const char* topicPattern, PurgeFilterFn shouldPurge, PurgeActionFn action = nullptr, const char* description = nullptr);
   void clearRules();
   void start();
   void loop(PubSubClient& client);
@@ -49,6 +54,6 @@ public:
   void reset();
 };
 
-extern MQTTPurgeManager mqttPurge;
+extern MQTTPurgeManager mqttPurgeManager;
 
 #endif // MQTT_PURGER_H

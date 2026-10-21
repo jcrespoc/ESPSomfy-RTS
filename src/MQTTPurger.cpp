@@ -6,11 +6,11 @@
 #include "Logger.h"
 #else
 
-#define LOG_E_PRINTF(fmt, ...) Serial.printf(fmt, ##__VA_ARGS__)
-#define LOG_W_PRINTF(fmt, ...) Serial.printf(fmt, ##__VA_ARGS__)
-#define LOG_I_PRINTF(fmt, ...) Serial.printf(fmt, ##__VA_ARGS__)
-#define LOG_D_PRINTF(fmt, ...) Serial.printf(fmt, ##__VA_ARGS__)
-#define LOG_V_PRINTF(fmt, ...) Serial.printf(fmt, ##__VA_ARGS__)
+#define LOG_E_PRINTF(fmt, ...) Serial.printf(fmt, ##__VA_ARGS__); Serial.println()
+#define LOG_W_PRINTF(fmt, ...) Serial.printf(fmt, ##__VA_ARGS__); Serial.println()
+#define LOG_I_PRINTF(fmt, ...) Serial.printf(fmt, ##__VA_ARGS__); Serial.println()
+#define LOG_D_PRINTF(fmt, ...) Serial.printf(fmt, ##__VA_ARGS__); Serial.println()
+#define LOG_V_PRINTF(fmt, ...) Serial.printf(fmt, ##__VA_ARGS__); Serial.println()
 
 #define LOG_E_PRINTLN(str) Serial.println(str)
 #define LOG_W_PRINTLN(str) Serial.println(str)
@@ -26,7 +26,7 @@
 
 #endif // ELOG_SERIAL_LEVEL
 
-MQTTPurgeManager mqttPurge;
+MQTTPurgeManager mqttPurgeManager;
 
 namespace PurgeHelper {
 
@@ -85,12 +85,14 @@ namespace PurgeHelper {
   }
 }
 
-void MQTTPurgeManager::addRule(const char* topicPattern, PurgeFilterFn shouldPurge, const char* description) {
+void MQTTPurgeManager::addRule(const char* topicPattern, PurgeFilterFn shouldPurge, PurgeActionFn action, const char* description) {
   if (!topicPattern || !shouldPurge) return;
   PurgeRule rule;
   rule.topicPattern = topicPattern;
   rule.shouldPurge = shouldPurge;
+  rule.action = action;
   rule.description = description ? description : topicPattern;
+  LOG_D_PRINTF("[MQTT Purge] addRule(%s)", topicPattern);
   this->rules.push_back(rule);
 }
 
@@ -100,14 +102,18 @@ void MQTTPurgeManager::clearRules() {
 
 void MQTTPurgeManager::reset() {
   this->state = MQTTPurgeState::Idle;
+  #ifdef PURGEMANAGER_ONERUN
   this->executedOnce = false;
+  #endif
   this->queue.clear();
   this->clearRules();
 }
 
 void MQTTPurgeManager::start() {
+  #ifdef PURGEMANAGER_ONERUN
   if (this->executedOnce) return;
   this->executedOnce = true;
+  #endif
   this->queue.clear();
   this->state = MQTTPurgeState::Subscribing;  
 }
@@ -137,11 +143,11 @@ void MQTTPurgeManager::onMessageReceived(const char* topic, const byte* payload,
         String t = String(topic);
         bool exists = false;
         for (const auto& item : this->queue) {
-          if (item == t) { exists = true; break; }
+          if (item.first == t) { exists = true; break; }
         }
         if (!exists) {
           LOG_D_PRINTF("[MQTT Purge] Queued %s", topic);
-          this->queue.push_back(t);
+          this->queue.push_back(std::make_pair(t, rule.action));
         }
       } else {
         LOG_D_PRINTF("[MQTT Purge] Preserved %s", topic);
@@ -176,13 +182,16 @@ void MQTTPurgeManager::loop(PubSubClient& client) {
 
     case MQTTPurgeState::Draining:
       if (!this->queue.empty()) {
-        String topicToPurge = this->queue.back();
+        std::pair<String, PurgeActionFn> topicToPurge = this->queue.back();
         this->queue.pop_back();
-        client.publish(topicToPurge.c_str(), (const uint8_t*)"", 0, true);
-        LOG_I_PRINTF("[MQTT Purge] Purged: %s", topicToPurge.c_str());
+        if (topicToPurge.second) {
+          topicToPurge.second(topicToPurge.first.c_str());
+        }
+        client.publish(topicToPurge.first.c_str(), (const uint8_t*)"", 0, true);
+        LOG_I_PRINTF("[MQTT Purge] Purged: %s", topicToPurge.first.c_str());
       } else {
         this->state = MQTTPurgeState::Completed;
-        LOG_D_PRINTF("[MQTT Purge] Reactive purge completed successfully.");
+        LOG_D_PRINTF("[MQTT Purge] Reactive purge completed");
       }
       break;
 

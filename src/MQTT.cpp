@@ -39,7 +39,7 @@ bool MQTTClass::loop() {
   esp_task_wdt_reset();
   if(settings.MQTT.enabled) {
     mqttClient.loop();
-    mqttPurge.loop(mqttClient);
+    mqttPurgeManager.loop(mqttClient);
   }
   return true;
 }
@@ -47,8 +47,8 @@ bool MQTTClass::loop() {
 void MQTTClass::receive(const char *topic, byte* payload, uint32_t length) {
   esp_task_wdt_reset();
 
-  if(mqttPurge.isCollecting()) {
-    mqttPurge.onMessageReceived(topic, payload, length);
+  if(mqttPurgeManager.isCollecting()) {
+    mqttPurgeManager.onMessageReceived(topic, payload, length);
   }
 
   uint16_t len = strlen(topic);
@@ -153,52 +153,56 @@ bool MQTTClass::connect() {
     mqttClient.setCallback(MQTTClass::receive);
     this->lastConnect = millis();
 
-    // Configure reactive purge rules
-    mqttPurge.clearRules();
     char buf[160];
     const char* root = settings.MQTT.rootTopic[0] != '\0' ? settings.MQTT.rootTopic : "espsomfy";
     const char* disco = settings.MQTT.discoTopic[0] != '\0' ? settings.MQTT.discoTopic : "homeassistant";
 
     // 1. v2.5.2 bug (Discovery inside rootTopic)
     snprintf(buf, sizeof(buf), "%s/homeassistant/#", root);
-    mqttPurge.addRule(buf, [](const char*, const byte*, size_t) { return true; }, "v2.5.2 bug");
+    mqttPurgeManager.addRule(buf, [](const char*, const byte*, size_t) { return true; }, nullptr, "v2.5.2 bug");
 
     // 2. Legacy cover discovery (Disambiguation)
     snprintf(buf, sizeof(buf), "%s/cover/+/config", disco);
-    mqttPurge.addRule(buf, [](const char*, const byte* payload, size_t length) {
+    mqttPurgeManager.addRule(buf, [](const char*, const byte* payload, size_t length) {
       if (!payload || length == 0 || settings.serverId[0] == '\0') return false;
       return (memmem(payload, length, settings.serverId, strlen(settings.serverId)) != nullptr);
-    }, "Legacy cover discovery");
+    }, nullptr, "Legacy cover discovery");
 
     // 3. Legacy switch discovery (Disambiguation)
     snprintf(buf, sizeof(buf), "%s/switch/+/config", disco);
-    mqttPurge.addRule(buf, [](const char*, const byte* payload, size_t length) {
+    mqttPurgeManager.addRule(buf, [](const char*, const byte* payload, size_t length) {
       if (!payload || length == 0 || settings.serverId[0] == '\0') return false;
       return (memmem(payload, length, settings.serverId, strlen(settings.serverId)) != nullptr);
-    }, "Legacy switch discovery");
+    }, nullptr, "Legacy switch discovery");
 
-    // 4. Orphan actual discovery with serverId
-    snprintf(buf, sizeof(buf), "%s/+/%s/+/config", disco, settings.serverId);
-    mqttPurge.addRule(buf, [](const char* topic, const byte*, size_t) {
-      int shadeId = PurgeHelper::extractIdFromSubtopic(topic);
-      return (somfy.getShadeById((uint8_t)shadeId) == nullptr);
-    }, "Orphan actual discovery");
+    //// 4. Orphan actual discovery with serverId
+    //snprintf(buf, sizeof(buf), "%s/+/%s/+/config", disco, settings.serverId);
+    //mqttPurgeManager.addRule(buf, [](const char* topic, const byte*, size_t) {
+    //  int shadeId = PurgeHelper::extractIdFromSubtopic(topic);
+    //  return (somfy.getShadeById((uint8_t)shadeId) == nullptr);
+    //}, nullptr, "Orphan actual discovery");
 
-    // 5. Orphan / deleted shades
-    snprintf(buf, sizeof(buf), "%s/shades/+/+", root);
-    mqttPurge.addRule(buf, [](const char* topic, const byte*, size_t) {
-      int shadeId = PurgeHelper::extractIdFromSubtopic(topic);
-      return (somfy.getShadeById((uint8_t)shadeId) == nullptr);
-    }, "Orphan / deleted shades");
+    //// 5. Orphan / deleted shades
+    //snprintf(buf, sizeof(buf), "%s/shades/+/remoteAddress", root);
+    //mqttPurgeManager.addRule(buf, [](const char* topic, const byte*, size_t) {
+    //  int shadeId = PurgeHelper::extractIdFromSubtopic(topic);
+    //  return (somfy.getShadeById((uint8_t)shadeId) == nullptr);
+    //}, [root](const char* topic) { 
+    //  char buf[160];
+    //  int n = PurgeHelper::extractIdFromSubtopic(topic);
+    //  snprintf(buf, sizeof(buf), "%s/shades/+", root);
+    //  SomfyShade::unpublish(n, buf);
+    //  return true; 
+    //}, "Orphan / deleted shades");
 
-    // 6. Orphan / deleted groups
-    snprintf(buf, sizeof(buf), "%s/groups/+/+", root);
-    mqttPurge.addRule(buf, [](const char* topic, const byte*, size_t) {
-      int groupId = PurgeHelper::extractIdFromSubtopic(topic);
-      return (somfy.getGroupById((uint8_t)groupId) == nullptr);
-    }, "Orphan / deleted groups");
+    //// 6. Orphan / deleted groups
+    //snprintf(buf, sizeof(buf), "%s/groups/+/+", root);
+    //mqttPurgeManager.addRule(buf, [](const char* topic, const byte*, size_t) {
+    //  int groupId = PurgeHelper::extractIdFromSubtopic(topic);
+    //  return (somfy.getGroupById((uint8_t)groupId) == nullptr);
+    //}, nullptr, "Orphan / deleted groups");
 
-    mqttPurge.start();
+    mqttPurgeManager.start();
     return true;
   }
   this->lastConnect = millis();

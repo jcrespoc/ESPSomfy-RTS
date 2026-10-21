@@ -10,6 +10,7 @@
 #include "MQTT.h"
 #include "ConfigFile.h"
 #include "GitOTA.h"
+#include "MQTTPurger.h"
 
 extern Preferences pref;
 extern SomfyShadeController somfy;
@@ -3631,16 +3632,27 @@ void SomfyShadeController::publish() {
   }
   strcat(arrIds, "]");
   mqtt.publish("shades", arrIds, true);
-  // Replaced by MQTTPurgeManager
-  /*
   for(uint8_t i = 1; i <= SOMFY_MAX_SHADES; i++) {
     SomfyShade *shade = this->getShadeById(i);
     if(shade) continue;
     else {
-      SomfyShade::unpublish(i);
+      //SomfyShade::unpublish(i);
+      char buf[160];
+      snprintf(buf, sizeof(buf), "%s/#/%d", settings.MQTT.rootTopic, i);
+      mqttPurgeManager.addRule(
+          buf,
+          [](const char* topic, const byte*, size_t) {
+            String topicStr(topic);
+            
+            return topicStr.indexOf("shades")!=-1 || topicStr.indexOf("switches")!=-1;
+          },
+          [](const char* topic) {
+            SomfyShade::unpublish(PurgeHelper::extractIdFromSubtopic(topic));
+          },
+          "orphans shades purge");
     }
   }
-  */
+  
   strcpy(arrIds, "[");
   for(uint8_t i = 0; i < SOMFY_MAX_GROUPS; i++) {
     SomfyGroup *group = &this->groups[i];
@@ -3651,6 +3663,7 @@ void SomfyShadeController::publish() {
   }
   strcat(arrIds, "]");
   mqtt.publish("groups", arrIds, true);
+
   // Replaced by MQTTPurgeManager
   /*
   for(uint8_t i = 1; i <= SOMFY_MAX_GROUPS; i++) {
