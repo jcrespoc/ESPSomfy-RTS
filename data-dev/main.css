@@ -529,6 +529,44 @@ opacity: 0.9;
     .credit-link:hover {
         opacity: 0.8;
     }
+.branch-badges-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    justify-content: flex-end;
+}
+.branch-badge {
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 0.82em;
+    font-family: monospace, sans-serif;
+    color: #fff;
+    background: var(--accent-color);
+    border-radius: 12px;
+    padding: 2px 8px;
+    display: inline-flex;
+    align-items: center;
+    transition: all 0.2s;
+    user-select: none;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+}
+    .branch-badge:hover {
+        opacity: 0.82;
+        transform: translateY(-1px);
+    }
+.branch-badge.fix {
+    background: #d97706;
+}
+.branch-badge.feature {
+    background: #2563eb;
+}
+.branch-badge.refactor {
+    background: #7c3aed;
+}
+.branch-badge.custom {
+    background: var(--accent-color);
+}
 /* Page Network*/
 .wifi-container {
     display: flex;

@@ -9,6 +9,7 @@ extdata/
 # --- Dossiers de build et fichiers de sortie ---
 build/
 data/
+include/git_build_info.h
 .cache/
 *.bin
 *.elf
@@ -27,3 +28,7 @@ debug.cfg
 
 # Secretos y credenciales
 secrets.ini
+
+# Python cache
+__pycache__/
+*.pyc

@@ -2021,6 +2021,7 @@ class General {
             if (typeof somfy !== 'undefined') somfy.initPins();
 
             this.setAppVersion();
+            this.renderBranchBadges(settings);
 
             loadLang(() => {
 
@@ -2084,6 +2085,36 @@ class General {
         });
     }
     setAppVersion() { get('spanAppVersion').innerText = this.appVersion; }
+    renderBranchBadges(settings) {
+        const container = get('branchBadgesContainer');
+        const bloc = get('divCustomBranchesBloc');
+        if (!container || !bloc) return;
+
+        let branches = [];
+        if (settings && settings.branches && typeof settings.branches === 'string') {
+            branches = settings.branches.split(',').map(b => b.trim()).filter(Boolean);
+        } else if (settings && settings.gitBranch && settings.gitBranch !== 'main' && settings.gitBranch !== 'master') {
+            branches = [settings.gitBranch];
+        }
+
+        if (branches.length === 0) {
+            bloc.style.display = 'none';
+            return;
+        }
+
+        container.innerHTML = branches.map(b => {
+            let cls = 'custom';
+            if (b.startsWith('fix/') || b.startsWith('fix_')) cls = 'fix';
+            else if (b.startsWith('feature/') || b.startsWith('feature_') || b.startsWith('feat/')) cls = 'feature';
+            else if (b.startsWith('refactor/') || b.startsWith('refactor_')) cls = 'refactor';
+
+            const url = `https://github.com/jcrespoc/ESPSomfy-RTS/tree/${encodeURIComponent(b)}`;
+            const commitInfo = settings.gitCommit ? ` [${settings.gitCommit}]` : '';
+            return `<span class="branch-badge ${cls}" onclick="window.open('${url}', '_blank')" title="Branch: ${b}${commitInfo}">${b}</span>`;
+        }).join('');
+
+        bloc.style.display = '';
+    }
     setTimeZones() {
         const dd = get('selTimeZone');
         dd.innerHTML = this.timeZones.map(tz => {
