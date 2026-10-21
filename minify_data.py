@@ -5,9 +5,11 @@ import re
 import shutil
 import subprocess
 import json
-from SCons.Script import Import
-
-Import("env")
+try:
+    from SCons.Script import Import
+    Import("env")
+except Exception:
+    env = None
 
 # ──────────────────────────────────────────────
 # Config
@@ -20,7 +22,12 @@ MINIFY_AND_GZIP = {".html", ".htm", ".css", ".js", ".json", ".svg", ".xml"}
 WEBP_EXTENSIONS = {".webp"}
 
 def _project_dir():
-    return env.subst("$PROJECT_DIR")
+    if "env" in globals() and env is not None:
+        try:
+            return env.subst("$PROJECT_DIR")
+        except Exception:
+            pass
+    return os.path.dirname(os.path.abspath(__file__))
 
 def _src_dir():
     return os.path.join(_project_dir(), SRC_DIR_NAME)

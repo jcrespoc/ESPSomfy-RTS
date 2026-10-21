@@ -15,6 +15,9 @@
 #include "GitOTA.h"
 #include "Sockets.h"
 #include "Network.h"
+#if __has_include("git_build_info.h")
+#include "git_build_info.h"
+#endif
 
 extern ConfigSettings settings;
 extern SSDPClass SSDP;
@@ -2850,6 +2853,15 @@ void Web::begin() {
     resp.beginResponse(&server, g_content, sizeof(g_content));
     resp.beginObject();
     resp.addElem("fwVersion", settings.fwVersion.name);
+#ifdef BUILD_CUSTOM_BRANCHES
+    resp.addElem("branches", BUILD_CUSTOM_BRANCHES);
+#endif
+#ifdef BUILD_GIT_COMMIT
+    resp.addElem("gitCommit", BUILD_GIT_COMMIT);
+#endif
+#ifdef BUILD_GIT_BRANCH
+    resp.addElem("gitBranch", BUILD_GIT_BRANCH);
+#endif
     settings.toJSON(resp);
     settings.NTP.toJSON(resp);
     resp.endObject();
