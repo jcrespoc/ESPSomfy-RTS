@@ -224,8 +224,10 @@ bool MQTTClass::publishBuffer(const char *topic, uint8_t *data, uint16_t len, bo
 bool MQTTClass::publishDisco(const char *topic, JsonObject &obj, bool retain) {
   serializeJson(obj, g_content, sizeof(g_content));
   bool ok = this->publishBuffer(topic, (uint8_t *)g_content, strlen(g_content), retain, true);
+#ifndef DISABLE_MQTT_PREVENTIVE_CLEANUP
   if(mqttClient.connected() && settings.MQTT.rootTopic[0] != '\0')
     mqttClient.publish(makeTopic(topic), (const uint8_t *)"", 0, true);
+#endif
   return ok;
 }
 
@@ -233,8 +235,10 @@ bool MQTTClass::unpublishDisco(const char *topic) {
   if(!mqttClient.connected()) return false;
   esp_task_wdt_reset();
   bool ok = mqttClient.publish(topic, (const uint8_t *)"", 0, true);
+#ifndef DISABLE_MQTT_PREVENTIVE_CLEANUP
   if(settings.MQTT.rootTopic[0] != '\0')
     mqttClient.publish(makeTopic(topic), (const uint8_t *)"", 0, true);
+#endif
   return ok;
 }
 
