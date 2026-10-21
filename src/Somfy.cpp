@@ -1468,11 +1468,13 @@ void SomfyShade::publishState() {
 // Clears the discovery topic used before the server id was part of it. The stale record
 // keeps the same unique_id as the new one, so Home Assistant ignores the new discovery.
 static void unpublishLegacyDisco(uint8_t shadeId) {
+#ifndef DISABLE_MQTT_PREVENTIVE_CLEANUP
   char topic[128] = "";
   snprintf(topic, sizeof(topic), "%s/cover/%d/config", settings.MQTT.discoTopic, shadeId);
   mqtt.unpublishDisco(topic);
   snprintf(topic, sizeof(topic), "%s/switch/%d/config", settings.MQTT.discoTopic, shadeId);
   mqtt.unpublishDisco(topic);
+#endif
 }
 void SomfyShade::publishDisco() {
   if(!mqtt.connected() || !settings.MQTT.pubDisco) return;
@@ -3631,6 +3633,7 @@ void SomfyShadeController::publish() {
   }
   strcat(arrIds, "]");
   mqtt.publish("shades", arrIds, true);
+#ifndef DISABLE_MQTT_PREVENTIVE_CLEANUP
   for(uint8_t i = 1; i <= SOMFY_MAX_SHADES; i++) {
     SomfyShade *shade = this->getShadeById(i);
     if(shade) continue;
@@ -3638,6 +3641,7 @@ void SomfyShadeController::publish() {
       SomfyShade::unpublish(i);
     }
   }
+#endif
   strcpy(arrIds, "[");
   for(uint8_t i = 0; i < SOMFY_MAX_GROUPS; i++) {
     SomfyGroup *group = &this->groups[i];
@@ -3648,11 +3652,13 @@ void SomfyShadeController::publish() {
   }
   strcat(arrIds, "]");
   mqtt.publish("groups", arrIds, true);
+#ifndef DISABLE_MQTT_PREVENTIVE_CLEANUP
   for(uint8_t i = 1; i <= SOMFY_MAX_GROUPS; i++) {
     SomfyGroup *group = this->getGroupById(i);
     if(group) continue;
     else SomfyGroup::unpublish(i);
   }
+#endif
 }
 uint8_t SomfyShadeController::getNextShadeId() {
   // There is no shortcut for this since the deletion of
