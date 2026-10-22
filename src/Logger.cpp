@@ -124,7 +124,6 @@ void LoggerInit() {
   #ifndef ELOG_SERIAL_DISABLED
   Logger.registerSerial(MAINLOG, ELOG_SERIAL_LEVEL, "Serial", RealHardwareSerial,  ELOG_FLAG_NO_SERVICE | ELOG_FLAG_TIME_SHORT);
 
-  //#define ELOG_INTERNAL_LOGGING_ENABLED
   #ifdef ELOG_INTERNAL_LOGGING_ENABLED
   Logger.configureInternalLogging(RealHardwareSerial, ELOG_LEVEL_INFO, 60*1000);
   #endif
