@@ -167,6 +167,9 @@ void applyLogSettings(const LogSettings& cfg) {
     Logger.setSyslogServer(cfg.syslogHost, cfg.syslogPort);
     Logger.setSyslogLogLevel(SYSLOG, cfg.syslogLevel, ELOG_FAC_SYSLOG);
   }
+  if (settings.hostname != NULL) {
+    Logger.configureSyslog(ELOG_SYSLOG_HOST, ELOG_SYSLOG_PORT, settings.hostname, false, 5000, 50);
+  }
   #endif
 
   #ifdef ELOG_SPIFFS_ENABLE
