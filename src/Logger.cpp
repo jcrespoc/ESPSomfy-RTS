@@ -121,8 +121,12 @@ void LoggerInit() {
   #ifndef ELOG_SERIAL_DISABLED
   Logger.registerSerial(MAINLOG, ELOG_SERIAL_LEVEL, "Serial", RealHardwareSerial,  ELOG_FLAG_NO_SERVICE | ELOG_FLAG_TIME_SHORT);
 
+  #ifdef ELOG_INTERNAL_LOGGING
   Logger.configureInternalLogging(RealHardwareSerial, ELOG_LEVEL_INFO, 60*1000);
-  //Logger.enableQuery(RealHardwareSerial);
+  #endif
+  #ifdef ELOG_QUERY_ENABLE
+  Logger.enableQuery(RealHardwareSerial);  
+  #endif
   #endif
 
   #ifdef ELOG_WS_ENABLE
