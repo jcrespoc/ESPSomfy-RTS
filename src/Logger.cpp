@@ -13,7 +13,7 @@
 
 #ifdef ELOG_SYSLOG_ENABLE
   #ifndef ELOG_SYSLOG_HOST
-    #error "ELOG_SYSLOG_HOST is not defined"
+  #define ELOG_SYSLOG_HOST "foo.bar"
   #endif
   #ifndef ELOG_SYSLOG_PORT
     #define ELOG_SYSLOG_PORT 514
