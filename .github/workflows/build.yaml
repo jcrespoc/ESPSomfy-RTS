@@ -28,6 +28,8 @@ jobs:
 
       - name: Check out code
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -126,6 +128,8 @@ jobs:
 
       - name: Check out code
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       # Récupération du LittleFS généré au Job 1
       - name: Get LittleFS
