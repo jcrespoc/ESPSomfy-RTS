@@ -28,6 +28,7 @@ void log(uint8_t logId, uint8_t logLevel, const char* format, ...) {
   if (xPortInIsrContext()) {
     return;
   }
+<<<<<<< Updated upstream
   Logger.log(logId, logLevel, format);
 }
 
@@ -69,6 +70,24 @@ void logRoute(uint8_t level, const char *str) {
   #endif
   #ifdef ELOG_WS_ENABLE
   log(WSLOG, level, str);
+=======
+  va_list args;
+  char buffer[1024];
+  va_start(args, format);
+  vsnprintf(buffer, sizeof(buffer), format, args);
+  va_end(args);
+  #ifndef ELOG_SERIAL_DISABLED
+  Logger.log(MAINLOG, level, buffer);
+  #endif
+  #ifdef ELOG_SYSLOG_ENABLE
+  Logger.log(SYSLOG, level, buffer);
+  #endif
+  #ifdef ELOG_SPIFFS_ENABLE
+  Logger.log(FILELOG, level, buffer);
+  #endif
+  #ifdef ELOG_WS_ENABLE
+  Logger.log(WSLOG, level, buffer);
+>>>>>>> Stashed changes
   #endif
 }
 

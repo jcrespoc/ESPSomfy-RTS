@@ -1,8 +1,6 @@
 #include "SerialLogAdapter.h"
 #include <cstring>
-#ifdef ENABLE_TLOG
-#include <TLog.h>
-#endif
+#include "Logger.h"
 
 SerialLogAdapter SerialLog;
 
@@ -31,9 +29,8 @@ size_t SerialLogAdapter::write(uint8_t c) {
 size_t SerialLogAdapter::write(const uint8_t *buffer, size_t size) {
     if (size == 0) return 0;
 
-    // Direct hardware write if inside ISR context to avoid FreeRTOS mutex blocking or memory allocations
     if (xPortInIsrContext()) {
-        return RealHardwareSerial.write(buffer, size);
+      return 0;
     }
 
     if (_mutex && xSemaphoreTake(_mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
@@ -89,22 +86,11 @@ void SerialLogAdapter::flushLine() {
     if (_index == 0) {
         // Empty newline (e.g. Serial.println())
         if (_started) {
-#ifndef ELOG_SERIAL_DISABLED
-            Logger.log(_logId, _defaultLogLevel, "");
-#endif
-#ifdef ELOG_SYSLOG_ENABLE
-            Logger.log(SYSLOG, _defaultLogLevel, "");
-#endif
-#ifdef ELOG_SPIFFS_ENABLE
-            Logger.log(FILELOG, _defaultLogLevel, "");
-#endif
-#ifdef ELOG_WS_ENABLE
-            Logger.log(WSLOG, _defaultLogLevel, "");
-#endif
+            log(_logLevel, "");
         } else {
-#ifndef ELOG_SERIAL_DISABLED
+            #ifndef ELOG_SERIAL_DISABLED
             RealHardwareSerial.println();
-#endif
+            #endif
         }
         return;
     }
@@ -113,39 +99,14 @@ void SerialLogAdapter::flushLine() {
 
     if (!_started) {
         // Fallback if logging has not started yet
-#ifndef ELOG_SERIAL_DISABLED
+        #ifndef ELOG_SERIAL_DISABLED
         RealHardwareSerial.println(_buffer);
-#endif
+        #endif
         _index = 0;
         return;
     }
 
-    uint8_t level = _defaultLogLevel;
-    if (_heuristicLevel) {
-        if (strstr(_buffer, "Error") != nullptr || strstr(_buffer, "ERROR") != nullptr || strstr(_buffer, "failed") != nullptr || strstr(_buffer, "Failed") != nullptr) {
-            level = ELOG_LEVEL_ERROR;
-        } else if (strstr(_buffer, "WARN") != nullptr || strstr(_buffer, "Warning") != nullptr || strstr(_buffer, "warning") != nullptr) {
-            level = ELOG_LEVEL_WARNING;
-        }
-    }
-
-#ifndef ELOG_SERIAL_DISABLED
-    Logger.log(_logId, level, "%s", _buffer);
-#endif
-#ifdef ELOG_SYSLOG_ENABLE
-    Logger.log(SYSLOG, level, "%s", _buffer);
-#endif
-#ifdef ELOG_SPIFFS_ENABLE
-    Logger.log(FILELOG, level, "%s", _buffer);
-#endif
-#ifdef ELOG_WS_ENABLE
-    Logger.log(WSLOG, level, "%s", _buffer);
-#endif
-    
-    #ifdef ENABLE_TLOG
-    Log.printf("%s\n", _buffer);
-    #endif
-
+    log(_logLevel, "%s", _buffer);    
     _index = 0;
 }
 

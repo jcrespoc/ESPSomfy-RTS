@@ -35,12 +35,8 @@ public:
     explicit operator bool() const { return (bool)RealHardwareSerial; }
 
     // Configuration
-    void setDefaultLogLevel(uint8_t level) { _defaultLogLevel = level; }
-    uint8_t getDefaultLogLevel() const { return _defaultLogLevel; }
-    void setHeuristicLevel(bool enable) { _heuristicLevel = enable; }
-    bool getHeuristicLevel() const { return _heuristicLevel; }
-    void setLogId(uint8_t id) { _logId = id; }
-    uint8_t getLogId() const { return _logId; }
+    void setLogLevel(uint8_t level) { _logLevel = level; }
+    uint8_t getLogLevel() const { return _logLevel; }
 
 private:
     static const size_t BUFFER_SIZE = 512;
@@ -48,8 +44,7 @@ private:
     size_t _index = 0;
     bool _started = false;
     bool _heuristicLevel = true;
-    uint8_t _defaultLogLevel = ELOG_LEVEL_INFO;
-    uint8_t _logId = MAINLOG;
+    uint8_t _logLevel = ELOG_LEVEL_INFO;
     SemaphoreHandle_t _mutex = nullptr;
 
     void flushLine();
