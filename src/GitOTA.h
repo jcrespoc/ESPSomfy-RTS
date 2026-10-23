@@ -15,6 +15,18 @@
 #define GIT_UPDATE_CANCELLING 5
 #define GIT_UPDATE_CANCELLED 6
 
+#ifndef REPOURL
+#define REPOURL "https://api.github.com/repos/xkain/ESPSomfy-RTS"
+#endif
+
+#ifndef CHECKINTERNET_URL
+#define CHECKINTERNET_URL "https://github.com/xkain/ESPSomfy-RTS"
+#endif
+
+#ifndef UPDATE_URL
+#define UPDATE_URL "https://github.com/xkain/ESPSomfy-RTS/releases/download/"
+#endif
+
 class GitRelease {
   public:
     uint64_t id = 0;
