@@ -40,9 +40,13 @@ void handlePowerCycleReset() {
 
   Preferences p;
   p.begin("rst_logic", false);
-  int count = p.getInt("c", 0) + 1;
-  p.putInt("c", count);
-  p.end();
+  int count = p.getInt("c", 0);
+
+  esp_reset_reason_t reason = esp_reset_reason();
+  if (reason == ESP_RST_POWERON || reason == ESP_RST_EXT) {
+    p.putInt("c", ++count);
+    p.end();
+  }
 
   Serial.print(F("\n[BOOT] Cycle: "));
   Serial.println(count);
