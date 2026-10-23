@@ -1636,6 +1636,8 @@ void Web::begin() {
     JsonResponse resp;
     resp.beginResponse(&server, g_content, sizeof(g_content));
     resp.beginObject();
+    resp.addElem("apiUrl", REPOURL);
+    resp.addElem("htmlUrl", CHECKINTERNET_URL "/releases");
     repo.toJSON(resp);
     resp.endObject();
     resp.endResponse();
