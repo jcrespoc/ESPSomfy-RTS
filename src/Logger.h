@@ -70,10 +70,17 @@ inline void logRoute(uint8_t level, Fmt format, Args... args) {
   #endif
 }
 
+<<<<<<< Updated upstream
 void logRoute(uint8_t level, const char *str);
 void logRoute(uint8_t level, const __FlashStringHelper *str);
 void logRoute(uint8_t level, const String str);
 void logRoute(uint8_t level, const char *str, const void *buff, size_t len);
+=======
+void log(uint8_t level, const char *format, ...);
+void log(uint8_t level, const __FlashStringHelper *str);
+void log(uint8_t level, const String str);
+void log(uint8_t level, const char *str, const void *buff, size_t len);
+>>>>>>> Stashed changes
 
 #define LOG_E_PRINTF(fmt, ...) logRoute(ELOG_LEVEL_ERROR, fmt, ##__VA_ARGS__)
 #define LOG_I_PRINTF(fmt, ...) logRoute(ELOG_LEVEL_INFO, fmt, ##__VA_ARGS__)
