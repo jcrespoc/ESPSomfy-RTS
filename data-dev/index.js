@@ -6314,6 +6314,9 @@ class Firmware {
     updateGithub() {
         getJSONSync('/getReleases', (err, rel) => {
             if (err) return ui.serviceError(err);
+            if (rel.apiUrl) this.repoApiUrl = rel.apiUrl;
+            if (rel.htmlUrl) this.repoReleasesUrl = rel.htmlUrl;
+            const repoReleasesUrl = this.repoReleasesUrl || 'https://github.com/xkain/ESPSomfy-RTS/releases';
             const div = document.createElement('div'), isMob = this.isMobile();
             // Raw, not chipFamily(): matched against the release asset names.
             const chip = (get('divContainer').getAttribute('data-chipmodel') || "").toLowerCase();
@@ -6337,7 +6340,7 @@ class Firmware {
             <span class="label">${tr('FIRMWARE_AVAILABLE')}</span>
             <select id="selVersion" class="selectCompac" data-bind="version">${optsHtml}</select>
             </div>
-            <a id="lnkGithubRelease" href="https://github.com/xkain/ESPSomfy-RTS/releases" target="_blank" class="link">${tr('FIRMWARE_NOTE_GITHUB')}<svg class="svgInTextSmall"><use href="#svg-linkOut"></use></svg></a>
+            <a id="lnkGithubRelease" href="${repoReleasesUrl}" target="_blank" class="link">${tr('FIRMWARE_NOTE_GITHUB')}<svg class="svgInTextSmall"><use href="#svg-linkOut"></use></svg></a>
             <div id="divPrereleaseWarning" class="error" style="display:none;"><svg><use href=#svg-error></use></svg><div><span id="spanUpdateWarning"></span></div></div>
             <div class="hrDiv"></div>
             <div class="warningText"><svg><use href="#svg-warning"></use></svg><span>${tr('FIRMWARE_CACHE')}</span></div>
@@ -6380,7 +6383,7 @@ class Firmware {
 
                 nDiv.innerHTML = '<div class="wifiConnectScan"><div class="lds-roller"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div>';
 
-                if (lnk) lnk.href = `https://github.com/xkain/ESPSomfy-RTS/releases/tag/${encodeURIComponent(sel.value)}`;
+                if (lnk) lnk.href = `${repoReleasesUrl}/tag/${encodeURIComponent(sel.value)}`;
 
                 try {
                     const r = await firmware.getReleaseInfo(sel.value, true);
@@ -6453,7 +6456,8 @@ class Firmware {
         if (!silent) overlay = ui.waitMessage(document.getElementById('divContainer'));
         try {
             let ret = { resp: { ok: false }, info: null };
-            ret.resp = await fetch(`https://api.github.com/repos/xkain/ESPSomfy-RTS/releases/tags/${tag}`);
+            const apiUrl = this.repoApiUrl || 'https://api.github.com/repos/xkain/ESPSomfy-RTS';
+            ret.resp = await fetch(`${apiUrl}/releases/tags/${tag}`);
             if (ret.resp.ok) {
                 ret.info = await ret.resp.json();
             }
