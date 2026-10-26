@@ -1402,7 +1402,11 @@ static bool validateRadioPins(JsonObject& obj, String &err) {
     {"CSNPin",  "CSN",  cur.CSNPin,  radio_pin_role::spi_out},
     {"MISOPin", "MISO", cur.MISOPin, radio_pin_role::spi_in},
     {"RXPin",   "RX",   cur.RXPin,   radio_pin_role::spi_in},
+#if defined(SOMFY_USE_RMT_TX)
+    {"TXPin",   "TX",   cur.TXPin,   radio_pin_role::tx_rmt}
+#else
     {"TXPin",   "TX",   cur.TXPin,   radio_pin_role::tx_bitbang}
+#endif
   };
   for(uint8_t i = 0; i < 6; i++) {
     // A missing key keeps the current value: the resulting state is what gets validated.

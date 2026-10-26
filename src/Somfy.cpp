@@ -10,6 +10,7 @@
 #include "MQTT.h"
 #include "ConfigFile.h"
 #include "GitOTA.h"
+#include "SomfyRadioRMT.h"
 
 extern Preferences pref;
 extern SomfyShadeController somfy;
@@ -4371,6 +4372,27 @@ void somfy_rx_queue_t::init() {
   memset(&this->index[0], 0xFF, MAX_RX_BUFFER);
   this->length = 0;
 }
+void somfy_rx_queue_t::push(somfy_rx_t *rx) {
+  if (this->length >= MAX_RX_BUFFER) {
+    uint8_t ndx = this->index[MAX_RX_BUFFER - 1];
+    if (ndx < MAX_RX_BUFFER) this->items[ndx].pulseCount = 0;
+    this->index[MAX_RX_BUFFER - 1] = 255;
+    this->length--;
+  }
+  uint8_t first = 0;
+  for (uint8_t i = 0; i < MAX_RX_BUFFER; i++) {
+    if (this->items[i].pulseCount == 0) {
+      first = i;
+      memcpy(&this->items[i], rx, sizeof(somfy_rx_t));
+      break;
+    }
+  }
+  for (uint8_t i = MAX_RX_BUFFER - 1; i > 0; i--) {
+    this->index[i] = this->index[i - 1];
+  }
+  this->length++;
+  this->index[0] = first;
+}
 bool somfy_rx_queue_t::pop(somfy_rx_t *rx) {
   // Read off the data from the oldest index.
   //Serial.println("Popping RX Queue");
@@ -4387,7 +4409,7 @@ bool somfy_rx_queue_t::pop(somfy_rx_t *rx) {
   return false;
 }
 
-void Transceiver::sendFrame(byte *frame, uint8_t sync, uint8_t bitLength) {
+void Transceiver::sendFrameLegacy(byte *frame, uint8_t sync, uint8_t bitLength) {
   if(!this->config.enabled) return;
   uint32_t pin = 1 << this->config.TXPin;
   if (sync == 2 || sync == 12) {  // Only with the first frame.  Repeats do not get a wakeup pulse.
@@ -4459,6 +4481,27 @@ void Transceiver::sendFrame(byte *frame, uint8_t sync, uint8_t bitLength) {
     delayMicroseconds(13717);
     delayMicroseconds(13717);
   }
+}
+
+#if defined(SOMFY_USE_RMT_TX)
+void Transceiver::sendFrameRMT(byte *frame, uint8_t sync, uint8_t bitLength) {
+  if(!this->config.enabled) return;
+  SomfyRadioRMT::sendFrame(frame, sync, bitLength);
+}
+#endif
+
+void Transceiver::sendFrame(byte *frame, uint8_t sync, uint8_t bitLength) {
+  if(!this->config.enabled) {
+    Serial.println("[Radio-TX] sendFrame SKIPPED: Radio is disabled");
+    return;
+  }
+  #if defined(SOMFY_USE_RMT_TX)
+  Serial.printf("[Radio-TX] sendFrame via RMT (sync=%u, bits=%u)\n", sync, bitLength);
+  this->sendFrameRMT(frame, sync, bitLength);
+  #else
+  Serial.printf("[Radio-TX] sendFrame via LEGACY bit-bang (sync=%u, bits=%u)\n", sync, bitLength);
+  this->sendFrameLegacy(frame, sync, bitLength);
+  #endif
 }
 void RECEIVE_ATTR Transceiver::handleReceive() {
     static unsigned long last_time = 0;
@@ -4553,37 +4596,7 @@ void RECEIVE_ATTR Transceiver::handleReceive() {
         break;
     }
     if (somfy_rx.status == receiving_data && somfy_rx.cpt_bits >= somfy_rx.bit_length) {
-        // Since we are operating within the interrupt all data really needs to be static
-        // for the handoff to the frame decoder.  For this reason we are buffering up to
-        // 3 total frames.  Althought it may not matter considering the length of a packet
-        // will likely not push over the loop timing.  For now lets assume that there
-        // may be some pressure on the loop for features.
-        if(rx_queue.length >= MAX_RX_BUFFER) {
-          // We have overflowed the buffer simply empty the last item
-          // in this instance we will simply throw it away.
-          uint8_t ndx = rx_queue.index[MAX_RX_BUFFER - 1];
-          if(ndx < MAX_RX_BUFFER) rx_queue.items[ndx].pulseCount = 0;
-          //memset(&this->items[ndx], 0x00, sizeof(somfy_rx_t));
-          rx_queue.index[MAX_RX_BUFFER - 1] = 255;
-          rx_queue.length--;
-        }
-        uint8_t first = 0;
-        // Place this record in the first empty slot.  There will
-        // be one since we cleared a space above should there
-        // be an overflow.
-        for(uint8_t i = 0; i < MAX_RX_BUFFER; i++) {
-          if(rx_queue.items[i].pulseCount == 0) {
-            first = i;
-            memcpy(&rx_queue.items[i], &somfy_rx, sizeof(somfy_rx_t));
-            break;
-          }
-        }
-        // Move the index so that it is the at position 0.  The oldest item will fall off.
-        for(uint8_t i = MAX_RX_BUFFER - 1; i > 0; i--) {
-          rx_queue.index[i] = rx_queue.index[i - 1];
-        }
-        rx_queue.length++;
-        rx_queue.index[0] = first;
+        rx_queue.push(&somfy_rx);
         memset(&somfy_rx.payload, 0x00, sizeof(somfy_rx.payload));
         somfy_rx.cpt_synchro_hw = 0;
         somfy_rx.previous_bit = 0x00;
@@ -4602,15 +4615,24 @@ void Transceiver::beginFrequencyScan() {
   if(this->config.enabled) {
     this->disableReceive();
     rxmode = 3;
+    rx_queue.init();
     pinMode(this->config.RXPin, INPUT);
-    interruptPin = digitalPinToInterrupt(this->config.RXPin);
     ELECHOUSE_cc1101.setRxBW(this->config.rxBandwidth);              // Set the Receive Bandwidth in kHz. Value from 58.03 to 812.50. Default is 812.50 kHz.
     ELECHOUSE_cc1101.SetRx();
     markFreq = currFreq = 433.0f;
     markRSSI = -100;
     ELECHOUSE_cc1101.setMHZ(currFreq);
-    Serial.printf("Begin frequency scan on Pin #%d\n", this->config.RXPin);
+    #if defined(SOMFY_USE_RMT_RX)
+    Serial.printf("[FrequencyScan] Begin frequency scan on Pin #%d (Driver: RMT)\n", this->config.RXPin);
+    if (!SomfyRadioRMT::isRxInitialized()) {
+      SomfyRadioRMT::initRx(this->config.RXPin);
+    }
+    SomfyRadioRMT::enableRx();
+    #else
+    Serial.printf("[FrequencyScan] Begin frequency scan on Pin #%d (Driver: LEGACY)\n", this->config.RXPin);
+    interruptPin = digitalPinToInterrupt(this->config.RXPin);
     attachInterrupt(interruptPin, handleReceive, CHANGE);
+    #endif
     this->emitFrequencyScan();
   }
 }
@@ -4618,6 +4640,7 @@ void Transceiver::processFrequencyScan(bool received) {
   if(this->config.enabled && rxmode == 3) {
     if(received) {
       currRSSI = ELECHOUSE_cc1101.getRssi();
+      Serial.printf("[FrequencyScan] Valid frame detected at %.2f MHz | RSSI: %d dBm\n", currFreq, currRSSI);
       if((long)(markFreq * 100) == (long)(currFreq * 100)) {
         markRSSI = currRSSI;
       }
@@ -4632,7 +4655,14 @@ void Transceiver::processFrequencyScan(bool received) {
       currRSSI = -100;
     }
     
-    if(millis() - lastScan > 100 && somfy_rx.status == waiting_synchro) {
+    bool isReceiving = false;
+    #if defined(SOMFY_USE_RMT_RX)
+    isReceiving = SomfyRadioRMT::isReceiving();
+    #else
+    isReceiving = (somfy_rx.status != waiting_synchro);
+    #endif
+
+    if(millis() - lastScan > 100 && !isReceiving) {
       lastScan = millis();
       this->emitFrequencyScan();
       currFreq += 0.01f;
@@ -4644,10 +4674,14 @@ void Transceiver::processFrequencyScan(bool received) {
 void Transceiver::endFrequencyScan() {
   if(rxmode == 3) {
     rxmode = 0;
-    if(interruptPin > 0) detachInterrupt(interruptPin); 
-    interruptPin = 0;
+    #if defined(SOMFY_USE_RMT_RX)
+    SomfyRadioRMT::disableRx();
+    #endif
+    if(interruptPin >= 0) detachInterrupt(interruptPin); 
+    interruptPin = -1;
     this->config.apply();
     this->emitFrequencyScan();
+    Serial.printf("[FrequencyScan] Scan completed. Best frequency: %.2f MHz (RSSI: %d dBm)\n", markFreq, markRSSI);
   }
 }
 void Transceiver::emitFrequencyScan(uint8_t num) {
@@ -4668,15 +4702,39 @@ void Transceiver::emitFrequencyScan(uint8_t num) {
   */
 }
 bool Transceiver::receive(somfy_rx_t *rx) {
-    // Check to see if there is anything in the buffer
-    if(rx_queue.length > 0) {
-      //Serial.printf("Processing receive %d\n", rx_queue.length);
-      rx_queue.pop(rx);
+    #if defined(SOMFY_USE_RMT_RX)
+    if (SomfyRadioRMT::pollReceive(rx)) {
       this->frame.decodeFrame(rx);
+      Serial.printf("[Radio-RX-RMT] Frame decoded: %d bits, %d pulses | valid=%s addr=0x%06X cmd=%s (0x%02X) rcode=%u sync=%u\n",
+                    rx->bit_length, rx->pulseCount,
+                    this->frame.valid ? "YES" : "NO",
+                    (uint32_t)this->frame.remoteAddress,
+                    translateSomfyCommand(this->frame.cmd).c_str(),
+                    static_cast<uint8_t>(this->frame.cmd),
+                    (uint32_t)this->frame.rollingCode,
+                    this->frame.hwsync);
       this->emitFrame(&this->frame, rx);
       return this->frame.valid;
     }
     return false;
+    #else
+    // Check to see if there is anything in the buffer
+    if(rx_queue.length > 0) {
+      rx_queue.pop(rx);
+      this->frame.decodeFrame(rx);
+      Serial.printf("[Radio-RX-LEGACY] Frame decoded: %d bits, %d pulses | valid=%s addr=0x%06X cmd=%s (0x%02X) rcode=%u sync=%u\n",
+                    rx->bit_length, rx->pulseCount,
+                    this->frame.valid ? "YES" : "NO",
+                    (uint32_t)this->frame.remoteAddress,
+                    translateSomfyCommand(this->frame.cmd).c_str(),
+                    static_cast<uint8_t>(this->frame.cmd),
+                    (uint32_t)this->frame.rollingCode,
+                    this->frame.hwsync);
+      this->emitFrame(&this->frame, rx);
+      return this->frame.valid;
+    }
+    return false;
+    #endif
 }
 void Transceiver::emitFrame(somfy_frame_t *frame, somfy_rx_t *rx) {
   if(sockEmit.activeClients(ROOM_EMIT_FRAME) > 0) {
@@ -4738,9 +4796,14 @@ void Transceiver::emitFrame(somfy_frame_t *frame, somfy_rx_t *rx) {
 void Transceiver::clearReceived(void) {
     //packet_received = false;
     //memset(receive_buffer, 0x00, sizeof(receive_buffer));
-    if(this->config.enabled)
+    if(this->config.enabled) {
+    #if defined(SOMFY_USE_RMT_RX)
+      SomfyRadioRMT::enableRx();
+    #else
       //attachInterrupt(interruptPin, handleReceive, FALLING);
       attachInterrupt(interruptPin, handleReceive, CHANGE);
+    #endif      
+    }
 }
 void Transceiver::enableReceive(void) {
     uint32_t timing = millis();
@@ -4748,15 +4811,26 @@ void Transceiver::enableReceive(void) {
     if(this->config.enabled) {
       rxmode = 1;
       pinMode(this->config.RXPin, INPUT);
-      interruptPin = digitalPinToInterrupt(this->config.RXPin);
       ELECHOUSE_cc1101.SetRx();
+      #if defined(SOMFY_USE_RMT_RX)
+      if (!SomfyRadioRMT::isRxInitialized()) {
+        SomfyRadioRMT::initRx(this->config.RXPin);
+      }
+      SomfyRadioRMT::enableRx();
+      Serial.printf("[Radio-RX] Enabled RMT receive on Pin #%d Timing: %ld\n", this->config.RXPin, millis() - timing);
+      #else
+      interruptPin = digitalPinToInterrupt(this->config.RXPin);
       //attachInterrupt(interruptPin, handleReceive, FALLING);
       attachInterrupt(interruptPin, handleReceive, CHANGE);
       Serial.printf("Enabled receive on Pin #%d Timing: %ld\n", this->config.RXPin, millis() - timing);
+      #endif      
     }
 }
 void Transceiver::disableReceive(void) { 
   rxmode = 0;
+  #if defined(SOMFY_USE_RMT_RX)
+  SomfyRadioRMT::disableRx();
+  #endif
   if(interruptPin > 0) detachInterrupt(interruptPin); 
   interruptPin = 0;
   
@@ -4800,6 +4874,9 @@ bool Transceiver::save() {
 }
 bool Transceiver::end() {
     this->disableReceive();
+    #if defined(SOMFY_USE_RMT_TX)
+    SomfyRadioRMT::deinitTx();
+    #endif
     return true;
 }
 const char *radioPinFault(int v, radio_pin_role role) {
@@ -4807,6 +4884,9 @@ const char *radioPinFault(int v, radio_pin_role role) {
     case radio_pin_role::tx_bitbang:
       if(!isUsableOutputPin(v)) return "RADIO_PIN_NOT_OUTPUT";
       if(v > 31) return "RADIO_PIN_TX_TOO_HIGH";
+      return nullptr;
+    case radio_pin_role::tx_rmt:
+      if(!isUsableOutputPin(v)) return "RADIO_PIN_NOT_OUTPUT";
       return nullptr;
     case radio_pin_role::spi_out:
       return isUsableOutputPin(v) ? nullptr : "RADIO_PIN_NOT_OUTPUT";
@@ -5130,6 +5210,12 @@ void transceiver_config_t::apply() {
       }
       else {
           Serial.println("Successfully set up the radio");
+          #if defined(SOMFY_USE_RMT_TX)
+          SomfyRadioRMT::initTx(this->TXPin);
+          #endif
+          #if defined(SOMFY_USE_RMT_RX)
+          SomfyRadioRMT::initRx(this->RXPin);
+          #endif
           somfy.transceiver.enableReceive();
           this->radioInit = true;
       }
@@ -5141,6 +5227,12 @@ void transceiver_config_t::apply() {
     else {
       if(this->radioInit) ELECHOUSE_cc1101.setSidle();
       somfy.transceiver.disableReceive();
+      #if defined(SOMFY_USE_RMT_TX)
+      SomfyRadioRMT::deinitTx();
+      #endif
+      #if defined(SOMFY_USE_RMT_RX)
+      SomfyRadioRMT::deinitRx();
+      #endif
       this->radioInit = false;
     }
     /*
@@ -5170,6 +5262,20 @@ bool Transceiver::begin() {
     this->config.load();
     this->config.apply();
     rx_queue.init();
+    #if defined(SOMFY_USE_RMT_TX)
+    Serial.println("[Radio] TX Mode: >>> HARDWARE RMT DRIVER <<<");
+    SomfyRadioRMT::initTx(this->config.TXPin);
+    pinMode(this->config.TXPin, OUTPUT);
+    digitalWrite(this->config.TXPin, 0);
+    #else
+    Serial.println("[Radio] TX Mode: >>> LEGACY BIT-BANG DRIVER <<<");
+    #endif
+    #if defined(SOMFY_USE_RMT_RX)
+    Serial.println("[Radio] RX Mode: >>> HARDWARE RMT DRIVER <<<");
+    SomfyRadioRMT::initRx(this->config.RXPin);
+    #else
+    Serial.println("[Radio] RX Mode: >>> LEGACY GPIO INTERRUPT DRIVER <<<");
+    #endif
     return true;
 }
 void Transceiver::loop() {
@@ -5192,8 +5298,14 @@ void Transceiver::loop() {
   }
   else {
     somfy.processWaitingFrame();
+    bool isRxBusy = false;
+    #if defined(SOMFY_USE_RMT_RX)
+    isRxBusy = SomfyRadioRMT::isReceiving();
+    #else
+    isRxBusy = (somfy_rx.cpt_synchro_hw > 0);
+    #endif
     // Check to see if there is anything in the buffer
-    if(tx_queue.length > 0 && millis() > tx_queue.delay_time && somfy_rx.cpt_synchro_hw == 0) {
+    if(tx_queue.length > 0 && millis() > tx_queue.delay_time && !isRxBusy) {
       this->beginTransmit();
       somfy_tx_t tx;
       
@@ -5229,12 +5341,47 @@ void Transceiver::beginTransmit() {
       pinMode(this->config.TXPin, OUTPUT);
       digitalWrite(this->config.TXPin, 0);
       ELECHOUSE_cc1101.SetTx();
+      #if defined(SOMFY_USE_RMT_TX)
+      Serial.printf("[Radio-TX] beginTransmit: RMT TX on GPIO %u\n", this->config.TXPin);
+      SomfyRadioRMT::initTx(this->config.TXPin);
+      #else
+      Serial.printf("[Radio-TX] beginTransmit: Legacy Bit-Bang on GPIO %u\n", this->config.TXPin);
+      #endif
+    }
+    else {
+      Serial.println("[Radio-TX] beginTransmit SKIPPED: Radio is disabled (config.enabled == false)");
     }
 }
 void Transceiver::endTransmit() {
     if(this->config.enabled) {
+      #if defined(SOMFY_USE_RMT_TX)
+      SomfyRadioRMT::endTx();
+      #endif
+      pinMode(this->config.TXPin, OUTPUT);
+      digitalWrite(this->config.TXPin, 0);
       ELECHOUSE_cc1101.setSidle();
       //delay(100);
       this->enableReceive();
+      Serial.println("[Radio-TX] endTransmit: Returned to RX mode");
     }
 }
+
+/*
+#if defined(SOMFY_USE_RMT_TX)
+void Transceiver::startTestSignal(uint16_t high_us, uint16_t low_us) {
+  if (this->isTestSignalRunning()) {
+    this->stopTestSignal();
+  }
+  Serial.println("[Radio-TX] Starting permanent test signal on GPIO");
+  SomfyRadioRMT::startTestSignal(high_us, low_us);
+}
+
+void Transceiver::stopTestSignal() {
+  SomfyRadioRMT::stopTestSignal();
+}
+
+bool Transceiver::isTestSignalRunning() {
+  return SomfyRadioRMT::isTestSignalRunning();
+}
+#endif
+*/

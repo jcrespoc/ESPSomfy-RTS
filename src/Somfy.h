@@ -2,6 +2,7 @@
 #define SOMFY_H
 #include "ConfigSettings.h"
 #include "WResp.h"
+#include "SomfyRadio.h"
 
 #define SOMFY_MAX_SHADES 32
 #define SOMFY_MAX_GROUPS 16
@@ -422,7 +423,7 @@ class SomfyGroup : public SomfyRemote {
     bool publish(const char *topic, bool val, bool retain = false);
 };
 // tx_bitbang must be an output and fit in 0-31: sendFrame() shifts it into GPIO_OUT_W1TS_REG.
-enum class radio_pin_role : uint8_t { tx_bitbang, spi_out, spi_in };
+enum class radio_pin_role : uint8_t { tx_bitbang, tx_rmt, spi_out, spi_in };
 // nullptr when the pin suits the role, otherwise a stable code.
 const char *radioPinFault(int pin, radio_pin_role role);
 const char *radioPinFaultText(const char *code);
@@ -506,6 +507,10 @@ class Transceiver {
     static void handleReceive();
     bool _received = false;
     somfy_frame_t frame;
+    void sendFrameLegacy(byte *frame, uint8_t sync, uint8_t bitLength);
+    #if defined(SOMFY_USE_RMT_TX)
+    void sendFrameRMT(byte *frame, uint8_t sync, uint8_t bitLength);
+    #endif
   public:
     transceiver_config_t config;
     bool printBuffer = false;
@@ -530,6 +535,11 @@ class Transceiver {
     void processFrequencyScan(bool received = false);
     void emitFrequencyScan(uint8_t num = 255);
     bool usesPin(uint8_t pin);
+    //#if defined(SOMFY_USE_RMT_TX)
+    //void startTestSignal(uint16_t high_us = 640, uint16_t low_us = 640);
+    //void stopTestSignal();
+    //bool isTestSignalRunning();
+    //#endif
 };
 class SomfyShadeController {
   protected:
