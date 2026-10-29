@@ -233,6 +233,10 @@ static somfy_rx_t s_rx_state;
 static somfy_rx_queue_t s_rx_queue;
 
 static void processPulse(uint32_t duration, uint8_t level) {
+    if (duration == 0) {
+        return;
+    }
+
     if (duration < SOMFY_TEMPO_HALF_SYMBOL_MIN) {
         if (s_rx_state.pulseCount < MAX_TIMINGS && s_rx_state.cpt_synchro_hw > 0) {
             s_rx_state.pulses[s_rx_state.pulseCount++] = duration;
@@ -322,6 +326,16 @@ static void processPulse(uint32_t duration, uint8_t level) {
 
     default:
         break;
+    }
+
+    if (s_rx_state.status == receiving_data && s_rx_state.cpt_bits >= s_rx_state.bit_length) {
+        Serial.printf("[RMT-RX] Frame complete: %d bits (%d pulses) -> Queued. Payload: %02X %02X %02X %02X %02X %02X %02X\n",
+                      s_rx_state.bit_length, s_rx_state.pulseCount,
+                      s_rx_state.payload[0], s_rx_state.payload[1], s_rx_state.payload[2],
+                      s_rx_state.payload[3], s_rx_state.payload[4], s_rx_state.payload[5],
+                      s_rx_state.payload[6]);
+        s_rx_queue.push(&s_rx_state);
+        s_rx_state.clear();
     }
 }
 
@@ -445,31 +459,8 @@ bool SomfyRadioRMT::pollReceive(somfy_rx_t *rx) {
     while (items != nullptr) {
         size_t num_items = rx_size / sizeof(rmt_item32_t);
         for (size_t i = 0; i < num_items; i++) {
-            if (items[i].duration0 > 0) {
-                processPulse(items[i].duration0, items[i].level0);
-                if (s_rx_state.status == receiving_data && s_rx_state.cpt_bits >= s_rx_state.bit_length) {
-                    Serial.printf("[RMT-RX] Frame complete: %d bits (%d pulses) -> Queued. Payload: %02X %02X %02X %02X %02X %02X %02X\n",
-                                  s_rx_state.bit_length, s_rx_state.pulseCount,
-                                  s_rx_state.payload[0], s_rx_state.payload[1], s_rx_state.payload[2],
-                                  s_rx_state.payload[3], s_rx_state.payload[4], s_rx_state.payload[5],
-                                  s_rx_state.payload[6]);
-                    s_rx_queue.push(&s_rx_state);
-                    s_rx_state.clear();
-                }
-            }
-
-            if (items[i].duration1 > 0) {
-                processPulse(items[i].duration1, items[i].level1);
-                if (s_rx_state.status == receiving_data && s_rx_state.cpt_bits >= s_rx_state.bit_length) {
-                    Serial.printf("[RMT-RX] Frame complete: %d bits (%d pulses) -> Queued. Payload: %02X %02X %02X %02X %02X %02X %02X\n",
-                                  s_rx_state.bit_length, s_rx_state.pulseCount,
-                                  s_rx_state.payload[0], s_rx_state.payload[1], s_rx_state.payload[2],
-                                  s_rx_state.payload[3], s_rx_state.payload[4], s_rx_state.payload[5],
-                                  s_rx_state.payload[6]);
-                    s_rx_queue.push(&s_rx_state);
-                    s_rx_state.clear();
-                }
-            }
+            processPulse(items[i].duration0, items[i].level0);
+            processPulse(items[i].duration1, items[i].level1);
         }
         vRingbufferReturnItem(s_rx_ringbuf, (void *)items);
         items = (rmt_item32_t *)xRingbufferReceive(s_rx_ringbuf, &rx_size, 0);
