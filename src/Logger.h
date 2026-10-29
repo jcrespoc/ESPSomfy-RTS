@@ -32,18 +32,17 @@ void LoggerInit();
 class LogSettings;
 void applyLogSettings(const LogSettings& cfg);
 
-
-void log(uint8_t level, const char *format, ...);
+void logf(uint8_t level, const char *format, ...);
 void log(uint8_t level, const char *str);
 void log(uint8_t level, const __FlashStringHelper *str);
 void log(uint8_t level, const String str);
 void log(uint8_t level, const char *str, const void *buff, size_t len);
 
-#define LOG_E_PRINTF(fmt, ...) log(ELOG_LEVEL_ERROR, fmt, ##__VA_ARGS__)
-#define LOG_W_PRINTF(fmt, ...) log(ELOG_LEVEL_WARNING, fmt, ##__VA_ARGS__)
-#define LOG_I_PRINTF(fmt, ...) log(ELOG_LEVEL_INFO, fmt, ##__VA_ARGS__)
-#define LOG_D_PRINTF(fmt, ...) log(ELOG_LEVEL_DEBUG, fmt, ##__VA_ARGS__)
-#define LOG_V_PRINTF(fmt, ...) log(ELOG_LEVEL_VERBOSE, fmt, ##__VA_ARGS__)
+#define LOG_E_PRINTF(fmt, ...) logf(ELOG_LEVEL_ERROR, fmt, ##__VA_ARGS__)
+#define LOG_W_PRINTF(fmt, ...) logf(ELOG_LEVEL_WARNING, fmt, ##__VA_ARGS__)
+#define LOG_I_PRINTF(fmt, ...) logf(ELOG_LEVEL_INFO, fmt, ##__VA_ARGS__)
+#define LOG_D_PRINTF(fmt, ...) logf(ELOG_LEVEL_DEBUG, fmt, ##__VA_ARGS__)
+#define LOG_V_PRINTF(fmt, ...) logf(ELOG_LEVEL_VERBOSE, fmt, ##__VA_ARGS__)
 
 #define LOG_E_PRINTLN(str) log(ELOG_LEVEL_ERROR, str)
 #define LOG_W_PRINTLN(str) log(ELOG_LEVEL_WARNING, str)

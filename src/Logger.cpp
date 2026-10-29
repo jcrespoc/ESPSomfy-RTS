@@ -13,7 +13,7 @@
 
 #ifdef ELOG_SYSLOG_ENABLE
   #ifndef ELOG_SYSLOG_HOST
-  #define ELOG_SYSLOG_HOST "foo.bar"
+  #define ELOG_SYSLOG_HOST ""
   #endif
   #ifndef ELOG_SYSLOG_PORT
     #define ELOG_SYSLOG_PORT 514
@@ -27,7 +27,7 @@ extern ConfigSettings settings;
 extern ConfigSettings settings;
 #endif
 
-void log(uint8_t level, const char *format, ...) {
+void logf(uint8_t level, const char *format, ...) {
   if (xPortInIsrContext()) {
     return;
   }
@@ -139,7 +139,6 @@ void LoggerInit() {
   #endif
 
   #ifdef ELOG_SYSLOG_ENABLE
-  WiFi.begin();
   Logger.configureSyslog(ELOG_SYSLOG_HOST, ELOG_SYSLOG_PORT, settings.hostname != NULL ? settings.hostname : "ESPSomfy", false, 5000, 50);
   Logger.registerSyslog(SYSLOG, ELOG_SYSLOG_LEVEL, ELOG_FAC_SYSLOG, "");
   #endif // ELOG_SYSLOG_ENABLE

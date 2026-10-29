@@ -472,8 +472,11 @@ bool LogSettings::load() {
   this->wsLevel = pref.getUChar("wLevel", ELOG_WS_LEVEL);
   this->syslogLevel = pref.getUChar("yLevel", ELOG_SYSLOG_LEVEL);
   pref.getString("yHost", this->syslogHost, sizeof(this->syslogHost));
+  if (strcmp(this->syslogHost, "") == 0) {
+    this->syslogHost[0] = '\0';
+  }  
 #ifdef ELOG_SYSLOG_HOST
-  if(strlen(this->syslogHost) == 0) {
+  if(strlen(this->syslogHost) == 0 && strlen(ELOG_SYSLOG_HOST) > 0) {
     strlcpy(this->syslogHost, ELOG_SYSLOG_HOST, sizeof(this->syslogHost));
   }
 #endif
