@@ -1497,6 +1497,22 @@
                                     <option value="80" tr="80BIT"></option>
                                 </select>
                             </div>
+                            <hr>
+                            <div>
+                                <label class="label" for="selRadioDriver" tr="TX_DRIVER">Controlador TX</label>
+                                <select id="selRadioDriver" class="inputAndSelect" name="txDriver" data-bind="transceiver.config.txDriver" data-datatype="int">
+                                    <option value="0" tr="DRIVER_RMT">Hardware RMT (Recomendado)</option>
+                                    <option value="1" tr="DRIVER_LEGACY">Legacy (Bit-Bang)</option>
+                                </select>
+                            </div>
+                            <hr>
+                            <div>
+                                <label class="label" for="selRadioRxDriver" tr="RX_DRIVER">Controlador RX</label>
+                                <select id="selRadioRxDriver" class="inputAndSelect" name="rxDriver" data-bind="transceiver.config.rxDriver" data-datatype="int">
+                                    <option value="0" tr="DRIVER_RMT_RX">Hardware RMT (Recomendado)</option>
+                                    <option value="1" tr="DRIVER_LEGACY_RX">Legacy (Interrupción GPIO)</option>
+                                </select>
+                            </div>
                         </div>
                         <div class="unibloc">
                             <div>

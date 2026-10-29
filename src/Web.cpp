@@ -1395,6 +1395,13 @@ static bool validateRadioPins(JsonObject& obj, String &err) {
   if(!obj.containsKey("config")) return true;
   JsonObject cfg = obj["config"];
   const transceiver_config_t &cur = somfy.transceiver.config;
+  radio_pin_role txRole = radio_pin_role::tx_bitbang;
+#if defined(SOMFY_USE_RMT_TX)
+  uint8_t driverVal = cfg.containsKey("txDriver") ? cfg["txDriver"].as<uint8_t>() : static_cast<uint8_t>(cur.txDriver);
+  if (driverVal == static_cast<uint8_t>(radio_tx_driver::rmt)) {
+    txRole = radio_pin_role::tx_rmt;
+  }
+#endif
   struct pin_slot_t { const char *key; const char *label; uint8_t current; radio_pin_role role; };
   const pin_slot_t slots[6] = {
     {"SCKPin",  "SCK",  cur.SCKPin,  radio_pin_role::spi_out},
@@ -1402,11 +1409,7 @@ static bool validateRadioPins(JsonObject& obj, String &err) {
     {"CSNPin",  "CSN",  cur.CSNPin,  radio_pin_role::spi_out},
     {"MISOPin", "MISO", cur.MISOPin, radio_pin_role::spi_in},
     {"RXPin",   "RX",   cur.RXPin,   radio_pin_role::spi_in},
-#if defined(SOMFY_USE_RMT_TX)
-    {"TXPin",   "TX",   cur.TXPin,   radio_pin_role::tx_rmt}
-#else
-    {"TXPin",   "TX",   cur.TXPin,   radio_pin_role::tx_bitbang}
-#endif
+    {"TXPin",   "TX",   cur.TXPin,   txRole}
   };
   for(uint8_t i = 0; i < 6; i++) {
     // A missing key keeps the current value: the resulting state is what gets validated.

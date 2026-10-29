@@ -424,6 +424,8 @@ class SomfyGroup : public SomfyRemote {
 };
 // tx_bitbang must be an output and fit in 0-31: sendFrame() shifts it into GPIO_OUT_W1TS_REG.
 enum class radio_pin_role : uint8_t { tx_bitbang, tx_rmt, spi_out, spi_in };
+enum class radio_tx_driver : uint8_t { rmt = 0, legacy = 1 };
+enum class radio_rx_driver : uint8_t { rmt = 0, legacy = 1 };
 // nullptr when the pin suits the role, otherwise a stable code.
 const char *radioPinFault(int pin, radio_pin_role role);
 const char *radioPinFaultText(const char *code);
@@ -433,6 +435,16 @@ struct transceiver_config_t {
     uint8_t type = 56;                // 56 or 80 bit protocol..
     uint8_t radioBoardType;
     radio_proto proto = radio_proto::RTS;
+#if defined(SOMFY_USE_RMT_TX)
+    radio_tx_driver txDriver = radio_tx_driver::rmt;
+#else
+    radio_tx_driver txDriver = radio_tx_driver::legacy;
+#endif
+#if defined(SOMFY_USE_RMT_RX)
+    radio_rx_driver rxDriver = radio_rx_driver::rmt;
+#else
+    radio_rx_driver rxDriver = radio_rx_driver::legacy;
+#endif
     uint8_t SCKPin = 18;
     uint8_t TXPin = 13;
     uint8_t RXPin = 12;
