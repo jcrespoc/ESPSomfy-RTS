@@ -24,115 +24,96 @@
 extern ConfigSettings settings;
 #endif
 
-void log(uint8_t logId, uint8_t logLevel, const char* format, ...) {
+void logf(uint8_t level, const char *format, ...) {
   if (xPortInIsrContext()) {
     return;
   }
-<<<<<<< Updated upstream
-  Logger.log(logId, logLevel, format);
-}
-
-void log(uint8_t logId, uint8_t logLevel, const __FlashStringHelper* format, ...) {
-  #ifdef ESP32
-    if (xPortInIsrContext()) {
-      // When called from an ISR, you should not send out logs.
-      // Allocating memory from within an ISR is a big no-no.
-      // Also long-time blocking like sending logs (especially to a syslog server) 
-      // is also really not a good idea from an ISR call.
-      return;
-    }
-  #endif
-  Logger.log(logId, logLevel, format);
-}
-
-void logHex(uint8_t logId, uint8_t logLevel, const char* message, const uint8_t* data, uint16_t length) {
-  #ifdef ESP32
-    if (xPortInIsrContext()) {
-      // When called from an ISR, you should not send out logs.
-      // Allocating memory from within an ISR is a big no-no.
-      // Also long-time blocking like sending logs (especially to a syslog server) 
-      // is also really not a good idea from an ISR call.
-      return;
-    }
-  #endif
-  Logger.logHex(logId, logLevel, message, data, length);
-}
-
-void logRoute(uint8_t level, const char *str) {
-  #ifndef ELOG_SERIAL_DISABLED
-  log(MAINLOG, level, str);
-  #endif
-  #ifdef ELOG_SYSLOG_ENABLE
-  log(SYSLOG, level, str);
-  #endif
-  #ifdef ELOG_SPIFFS_ENABLE
-  log(FILELOG, level, str);
-  #endif
-  #ifdef ELOG_WS_ENABLE
-  log(WSLOG, level, str);
-=======
   va_list args;
-  char buffer[1024];
   va_start(args, format);
-  vsnprintf(buffer, sizeof(buffer), format, args);
+  #ifndef ELOG_SERIAL_DISABLED
+  Logger.log(MAINLOG, level, format, args);
+  #endif
+  #ifdef ELOG_SYSLOG_ENABLE
+  Logger.log(SYSLOG, level, format, args);
+  #endif
+  #ifdef ELOG_SPIFFS_ENABLE
+  Logger.log(FILELOG, level, format, args);
+  #endif
+  #ifdef ELOG_WS_ENABLE
+  Logger.log(WSLOG, level, format, args);
+  #endif
   va_end(args);
+}
+
+void log(uint8_t level, const char *str) {
+  if (xPortInIsrContext()) {
+    return;
+  }
   #ifndef ELOG_SERIAL_DISABLED
-  Logger.log(MAINLOG, level, buffer);
+  Logger.log(MAINLOG, level, str);
   #endif
   #ifdef ELOG_SYSLOG_ENABLE
-  Logger.log(SYSLOG, level, buffer);
+  Logger.log(SYSLOG, level, str);
   #endif
   #ifdef ELOG_SPIFFS_ENABLE
-  Logger.log(FILELOG, level, buffer);
+  Logger.log(FILELOG, level, str);
   #endif
   #ifdef ELOG_WS_ENABLE
-  Logger.log(WSLOG, level, buffer);
->>>>>>> Stashed changes
+  Logger.log(WSLOG, level, str);
   #endif
 }
 
-void logRoute(uint8_t level, const __FlashStringHelper *str) {
+void log(uint8_t level, const __FlashStringHelper *str) {
+  if (xPortInIsrContext()) {
+    return;
+  }
   #ifndef ELOG_SERIAL_DISABLED
-  log(MAINLOG, level, str);
+  Logger.log(MAINLOG, level, str);
   #endif
   #ifdef ELOG_SYSLOG_ENABLE
-  log(SYSLOG, level, str);
+  Logger.log(SYSLOG, level, str);
   #endif
   #ifdef ELOG_SPIFFS_ENABLE
-  log(FILELOG, level, str);  
+  Logger.log(FILELOG, level, str);  
   #endif
   #ifdef ELOG_WS_ENABLE
-  log(WSLOG, level, str);
+  Logger.log(WSLOG, level, str);
   #endif
 }
 
-void logRoute(uint8_t level, const String str) {
+void log(uint8_t level, const String str) {
+  if (xPortInIsrContext()) {
+    return;
+  }
   #ifndef ELOG_SERIAL_DISABLED
-  log(MAINLOG, level, str.c_str());
+  Logger.log(MAINLOG, level, str.c_str());
   #endif
   #ifdef ELOG_SYSLOG_ENABLE
-  log(SYSLOG, level, str.c_str());
+  Logger.log(SYSLOG, level, str.c_str());
   #endif
   #ifdef ELOG_SPIFFS_ENABLE
-  log(FILELOG, level, str.c_str());
+  Logger.log(FILELOG, level, str.c_str());
   #endif
   #ifdef ELOG_WS_ENABLE
-  log(WSLOG, level, str.c_str());
+  Logger.log(WSLOG, level, str.c_str());
   #endif
 }
 
-void logRoute(uint8_t level, const char *str, const void *buff, size_t len) {
+void log(uint8_t level, const char *str, const void *buff, size_t len) {
+  if (xPortInIsrContext()) {
+    return;
+  }  
   #ifndef ELOG_SERIAL_DISABLED
-  logHex(MAINLOG,  level, str, (const uint8_t*) buff, len);
+  Logger.log(MAINLOG,  level, str, (const uint8_t*) buff, len);
   #endif
   #ifdef ELOG_SYSLOG_ENABLE
-  logHex(SYSLOG, level, str, (const uint8_t*) buff, len);
+  Logger.log(SYSLOG, level, str, (const uint8_t*) buff, len);
   #endif
   #ifdef ELOG_SPIFFS_ENABLE
-  logHex(FILELOG, level, str, (const uint8_t*) buff, len);
+  Logger.log(FILELOG, level, str, (const uint8_t*) buff, len);
   #endif
   #ifdef ELOG_WS_ENABLE
-  logHex(WSLOG, level, str, (const uint8_t*) buff, len);
+  Logger.log(WSLOG, level, str, (const uint8_t*) buff, len);
   #endif
 }
 
