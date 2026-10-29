@@ -106,7 +106,7 @@ void SerialLogAdapter::flushLine() {
         return;
     }
 
-    log(_logLevel, "%s", _buffer);    
+    log(_logLevel, _buffer);
     _index = 0;
 }
 
