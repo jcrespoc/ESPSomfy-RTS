@@ -2,6 +2,7 @@
 #define SOMFY_H
 #include "ConfigSettings.h"
 #include "WResp.h"
+#include "SomfyRadio.h"
 
 #define SOMFY_MAX_SHADES 32
 #define SOMFY_MAX_GROUPS 16
@@ -423,7 +424,11 @@ class SomfyGroup : public SomfyRemote {
     bool publish(const char *topic, bool val, bool retain = false);
 };
 // tx_bitbang must be an output and fit in 0-31: sendFrame() shifts it into GPIO_OUT_W1TS_REG.
-enum class radio_pin_role : uint8_t { tx_bitbang, spi_out, spi_in };
+enum class radio_pin_role : uint8_t { tx_bitbang, 
+  #if defined(SOMFY_USE_RMT)
+  tx_rmt, 
+  #endif
+  spi_out, spi_in };
 // nullptr when the pin suits the role, otherwise a stable code.
 const char *radioPinFault(int pin, radio_pin_role role);
 const char *radioPinFaultText(const char *code);
@@ -521,7 +526,7 @@ class Transceiver {
     void clearReceived();
     void enableReceive();
     void disableReceive();
-    somfy_frame_t& lastFrame();
+    somfy_frame_t& lastFrame();    
     void sendFrame(byte *frame, uint8_t sync, uint8_t bitLength = 56);
     void beginTransmit();
     void endTransmit();
