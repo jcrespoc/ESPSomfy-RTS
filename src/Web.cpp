@@ -3,6 +3,8 @@
 #include <LittleFS.h>
 #include <Update.h>
 #include <esp_task_wdt.h>
+#include <vector>
+#include <algorithm>
 #include "mbedtls/md.h"
 #include "ConfigSettings.h"
 #include "ConfigFile.h"
@@ -15,6 +17,7 @@
 #include "GitOTA.h"
 #include "Sockets.h"
 #include "Network.h"
+#include "Logger.h"
 
 extern ConfigSettings settings;
 extern SSDPClass SSDP;
@@ -1390,6 +1393,163 @@ void Web::handleReboot(WebServer &server) {
     server.send(201, _encoding_json, "{\"status\":\"ERROR\",\"desc\":\"Invalid HTTP Method: \"}");
   }
 }
+void Web::handleLogFiles(WebServer &server) {
+  webServer.sendCORSHeaders(server);
+  if (server.method() == HTTP_OPTIONS) { server.send(200, "OK"); return; }
+  if (server.method() != HTTP_GET) {
+    server.send(405, "application/json", "{\"status\":\"ERROR\",\"desc\":\"Method Not Allowed\"}");
+    return;
+  }
+
+  struct LogFileInfo {
+    String path;
+    String name;
+    size_t size;
+    time_t time;
+  };
+
+  std::vector<LogFileInfo> fileList;
+
+  File root = LittleFS.open("/logs");
+  if (root && root.isDirectory()) {
+    File entry = root.openNextFile();
+    while (entry) {
+      esp_task_wdt_reset();
+      if (entry.isDirectory()) {
+        String dirName = entry.name();
+        while (dirName.startsWith("/")) dirName = dirName.substring(1);
+        int slash = dirName.lastIndexOf('/');
+        if (slash >= 0) dirName = dirName.substring(slash + 1);
+
+        String dirPath = String("/logs/") + dirName;
+        File subDir = LittleFS.open(dirPath);
+        if (subDir && subDir.isDirectory()) {
+          File subFile = subDir.openNextFile();
+          while (subFile) {
+            esp_task_wdt_reset();
+            if (!subFile.isDirectory()) {
+              String fName = subFile.name();
+              while (fName.startsWith("/")) fName = fName.substring(1);
+              int fSlash = fName.lastIndexOf('/');
+              if (fSlash >= 0) fName = fName.substring(fSlash + 1);
+
+              LogFileInfo info;
+              info.path = dirPath + "/" + fName;
+              info.name = dirName + "/" + fName;
+              info.size = subFile.size();
+              info.time = subFile.getLastWrite();
+              fileList.push_back(info);
+            }
+            subFile.close();
+            subFile = subDir.openNextFile();
+          }
+          subDir.close();
+        }
+      } else {
+        String fName = entry.name();
+        while (fName.startsWith("/")) fName = fName.substring(1);
+        int fSlash = fName.lastIndexOf('/');
+        if (fSlash >= 0) fName = fName.substring(fSlash + 1);
+
+        LogFileInfo info;
+        info.path = String("/logs/") + fName;
+        info.name = fName;
+        info.size = entry.size();
+        info.time = entry.getLastWrite();
+        fileList.push_back(info);
+      }
+      entry.close();
+      entry = root.openNextFile();
+    }
+    root.close();
+  }
+
+  std::sort(fileList.begin(), fileList.end(), [](const LogFileInfo& a, const LogFileInfo& b) {
+    if (a.name != b.name) return a.name > b.name;
+    return a.time > b.time;
+  });
+
+  #define MAX_LOG_FILES 20
+  if (fileList.size() > MAX_LOG_FILES) {
+    for (size_t i = MAX_LOG_FILES; i < fileList.size(); ++i) {
+      LittleFS.remove(fileList[i].path);
+    }
+    fileList.erase(fileList.begin() + MAX_LOG_FILES, fileList.end());
+  }
+
+  JsonResponse resp;
+  resp.beginResponse(&server, g_content, sizeof(g_content));
+  resp.beginArray();
+  for (const auto& item : fileList) {
+    resp.beginObject();
+    resp.addElem("path", item.path.c_str());
+    resp.addElem("name", item.name.c_str());
+    resp.addElem("size", (uint32_t)item.size);
+    resp.addElem("time", (uint32_t)item.time);
+    resp.endObject();
+  }
+  resp.endArray();
+  resp.endResponse();
+}
+
+void Web::handleLogFile(WebServer &server) {
+  webServer.sendCORSHeaders(server);
+  if (server.method() == HTTP_OPTIONS) { server.send(200, "OK"); return; }
+  if (server.method() != HTTP_GET) {
+    server.send(405, "application/json", "{\"status\":\"ERROR\",\"desc\":\"Method Not Allowed\"}");
+    return;
+  }
+
+  if (!server.hasArg("file")) {
+    server.send(400, "application/json", "{\"status\":\"ERROR\",\"desc\":\"Missing file parameter\"}");
+    return;
+  }
+
+  String filePath = server.arg("file");
+  if (!filePath.startsWith("/logs/") || filePath.indexOf("..") != -1) {
+    server.send(403, "application/json", "{\"status\":\"ERROR\",\"desc\":\"Access denied\"}");
+    return;
+  }
+
+  if (!LittleFS.exists(filePath)) {
+    server.send(404, "application/json", "{\"status\":\"ERROR\",\"desc\":\"File not found\"}");
+    return;
+  }
+
+  File f = LittleFS.open(filePath, "r");
+  if (!f || f.isDirectory()) {
+    if (f) f.close();
+    server.send(500, "application/json", "{\"status\":\"ERROR\",\"desc\":\"Unable to open file\"}");
+    return;
+  }
+
+  esp_task_wdt_reset();
+
+  bool download = false;
+  if (server.hasArg("download")) {
+    download = toBoolean(server.arg("download").c_str(), false) || server.arg("download") == "1";
+  }
+
+  if (download) {
+    int lastSlash = filePath.lastIndexOf('/');
+    String downloadName = (lastSlash >= 0) ? filePath.substring(lastSlash + 1) : "logfile.log";
+    if (!downloadName.endsWith(".log") && !downloadName.endsWith(".txt")) {
+      downloadName += ".log";
+    }
+    server.sendHeader(F("Content-Disposition"), String(F("attachment; filename=\"")) + downloadName + F("\""));
+    server.sendHeader(F("Access-Control-Expose-Headers"), F("Content-Disposition"));
+    server.setContentLength(f.size());
+    server.send(200, "application/octet-stream", "");
+  } else {
+    server.setContentLength(f.size());
+    server.send(200, "text/plain; charset=utf-8", "");
+  }
+
+  server.client().write(f);
+  f.close();
+  esp_task_wdt_reset();
+}
+
 // Validates before anything is applied: fromJSON() has no error channel of its own.
 static bool validateRadioPins(JsonObject& obj, String &err) {
   if(!obj.containsKey("config")) return true;
@@ -2736,6 +2896,46 @@ void Web::begin() {
       }
     }
     });
+  server.on("/logConfig", []() {
+    webServer.sendCORSHeaders(server);
+    if (server.method() == HTTP_OPTIONS) { server.send(200, "OK"); return; }
+    HTTPMethod method = server.method();
+
+    if (method == HTTP_GET) {
+      DynamicJsonDocument doc(512);
+      JsonObject root = doc.to<JsonObject>();
+      settings.Log.toJSON(root);
+      String resp;
+      serializeJson(doc, resp);
+      server.send(200, "application/json", resp);
+      return;
+    }
+
+    if (method == HTTP_POST || method == HTTP_PUT) {
+      DynamicJsonDocument doc(512);
+      DeserializationError err = deserializeJson(doc, server.arg("plain"));
+      if (err) {
+        webServer.handleDeserializationError(server, err);
+        return;
+      }
+      JsonObject obj = doc.as<JsonObject>();
+      settings.Log.fromJSON(obj);
+      settings.Log.save();
+      applyLogSettings(settings.Log);
+
+      DynamicJsonDocument respDoc(512);
+      JsonObject respRoot = respDoc.to<JsonObject>();
+      settings.Log.toJSON(respRoot);
+      String resp;
+      serializeJson(respDoc, resp);
+      server.send(200, "application/json", resp);
+      return;
+    }
+
+    server.send(405, "application/json", "{\"status\":\"ERROR\",\"desc\":\"Method Not Allowed\"}");
+    });
+  server.on("/logFiles", []() { webServer.handleLogFiles(server); });
+  server.on("/logFile", []() { webServer.handleLogFile(server); });
   server.on("/setNetwork", []() {
     webServer.sendCORSHeaders(server);
     if(server.method() == HTTP_OPTIONS) { server.send(200, "OK"); return; }
