@@ -1,16 +1,12 @@
 #ifndef _LOGGER_H
 #define _LOGGER_H
 
-#define LOG_LEVEL_ALWAYS     0
-#define LOG_LEVEL_EMERGENCY  1
-#define LOG_LEVEL_ALERT      2
-#define LOG_LEVEL_CRITICAL   3
+#include <Elog.h>
+
 #define LOG_LEVEL_ERROR      4
 #define LOG_LEVEL_WARNING    5
-#define LOG_LEVEL_NOTICE     6
 #define LOG_LEVEL_INFO       7
 #define LOG_LEVEL_DEBUG      8
-#define LOG_LEVEL_TRACE      9
 #define LOG_LEVEL_VERBOSE    10
 #define LOG_LEVEL_NOLOG      11
 
@@ -24,28 +20,8 @@
 #define ELOG_SERIAL_LEVEL LOG_LEVEL_NOLOG
 #endif
 #ifndef ELOG_WS_LEVEL
-  #ifdef ELOG_WS_ENABLE
-    #define ELOG_WS_LEVEL LOG_LEVEL_INFO
-  #else
-    #define ELOG_WS_LEVEL LOG_LEVEL_NOLOG
-  #endif
+#define ELOG_WS_LEVEL LOG_LEVEL_NOLOG
 #endif
-
-#if ELOG_SERIAL_LEVEL < LOG_LEVEL_NOLOG
-#undef ELOG_SERIAL_DISABLED
-#else
-#define ELOG_SERIAL_DISABLED
-#endif
-
-#if ELOG_WS_LEVEL < LOG_LEVEL_NOLOG
-  #ifndef ELOG_WS_ENABLE
-    #define ELOG_WS_ENABLE
-  #endif
-#endif
-
-
-#include <Elog.h>
-
 
 #define MAINLOG 0
 #define SYSLOG 1
@@ -53,6 +29,8 @@
 #define WSLOG 3
 
 void LoggerInit();
+class LogSettings;
+void applyLogSettings(const LogSettings& cfg);
 
 void logf(uint8_t level, const char *format, ...);
 void log(uint8_t level, const char *str);

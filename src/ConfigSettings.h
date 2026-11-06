@@ -175,6 +175,22 @@ class MQTTSettings: BaseSettings {
     void toJSON(JsonResponse &json);
     bool fromJSON(JsonObject &obj);
 };
+class LogSettings: BaseSettings {
+  public:
+    uint8_t serialLevel = 11;
+    uint8_t wsLevel = 11;
+    uint8_t syslogLevel = 11;
+    char syslogHost[65] = "";
+    uint16_t syslogPort = 514;
+    uint8_t spiffsLevel = 11;
+    bool begin();
+    bool save();
+    bool load();
+    bool toJSON(JsonObject &obj);
+    void toJSON(JsonResponse &json);
+    bool fromJSON(JsonObject &obj);
+    void print();
+};
 class ConfigSettings: BaseSettings {
   public:
     static void printAvailHeap();
@@ -196,6 +212,7 @@ class ConfigSettings: BaseSettings {
     NTPSettings NTP;
     MQTTSettings MQTT;
     SecuritySettings Security;
+    LogSettings Log;
     bool requiresAuth();
     bool fromJSON(JsonObject &obj);
     bool toJSON(JsonObject &obj);
