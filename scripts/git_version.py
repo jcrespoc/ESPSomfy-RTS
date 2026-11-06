@@ -33,6 +33,7 @@ def get_git_version(project_dir=None):
             stderr=subprocess.DEVNULL
         ).strip()
         if tag:
+            print(f"[git-version] Found Git tag: {tag}")
             return tag if tag.startswith("v") else f"v{tag}"
     except Exception:
         pass
@@ -49,6 +50,7 @@ def get_git_version(project_dir=None):
             match = re.search(r"^(v?[0-9]+\.[0-9]+(?:\.[0-9]+)?)", desc)
             if match:
                 v = match.group(1)
+                print(f"[git-version] Found Git describe: {desc}, parsed version: {v}")
                 return v if v.startswith("v") else f"v{v}"
     except Exception:
         pass
@@ -61,6 +63,7 @@ def get_git_version(project_dir=None):
                 match = re.search(r'#define\s+FW_VERSION\s+"([^"]+)"', f.read())
                 if match:
                     v = match.group(1).strip()
+                    print(f"[git-version] Found ConfigSettings.h version: {v}")
                     return v if v.startswith("v") else f"v{v}"
         except Exception:
             pass
@@ -73,11 +76,12 @@ def get_git_version(project_dir=None):
                 lines = [line.strip() for line in f.read().splitlines() if line.strip()]
                 if lines:
                     v = lines[0]
+                    print(f"[git-version] Found data-dev/appversion version: {v}")  
                     return v if v.startswith("v") else f"v{v}"
         except Exception:
             pass
 
-    return "v2.6.2"
+    return "noversion"
 
 def sync_version_files(project_dir, fw_version):
     # App version without 'v' prefix for data-dev/appversion to maintain upstream format

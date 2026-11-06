@@ -24,22 +24,45 @@ def get_project_dir():
             return env.subst("$PROJECT_DIR")
         except Exception:
             pass
-    current = os.path.dirname(os.path.abspath(__file__))
-    if os.path.basename(current) == "scripts":
-        return os.path.dirname(current)
-    return current
+    try:
+        current = os.path.dirname(os.path.abspath(__file__))
+        if os.path.basename(current) == "scripts":
+            return os.path.dirname(current)
+        return current
+    except NameError:
+        return os.getcwd()
 
 def get_fw_version(project_dir):
+    # 0. Check if FW_VERSION was already defined in env (injected by git_version.py)
+    if "env" in globals() and env is not None:
+        try:
+            defines = env.get("CPPDEFINES", [])
+            for d in defines:
+                if isinstance(d, (list, tuple)) and len(d) >= 2 and d[0] == "FW_VERSION":
+                    raw_val = str(d[1]).strip().strip('"').strip('\\"')
+                    if raw_val:
+                        return raw_val if raw_val.startswith("v") else f"v{raw_val}"
+                elif isinstance(d, str) and d.startswith("FW_VERSION="):
+                    raw_val = d.split("=", 1)[1].strip().strip('"').strip('\\"')
+                    if raw_val:
+                        return raw_val if raw_val.startswith("v") else f"v{raw_val}"
+        except Exception:
+            pass
+
+    # 1. Try git_version module
     try:
         import sys
-        scripts_dir = os.path.dirname(os.path.abspath(__file__))
+        scripts_dir = os.path.join(project_dir, "scripts")
         if scripts_dir not in sys.path:
             sys.path.insert(0, scripts_dir)
         from git_version import get_git_version
-        return get_git_version(project_dir)
+        v = get_git_version(project_dir)
+        if v:
+            return v
     except Exception:
         pass
 
+    # 2. Fallback to src/ConfigSettings.h
     cfg_file = os.path.join(project_dir, "src", "ConfigSettings.h")
     if os.path.exists(cfg_file):
         try:
@@ -50,6 +73,7 @@ def get_fw_version(project_dir):
         except Exception:
             pass
 
+    # 3. Fallback to data-dev/appversion
     appver_file = os.path.join(project_dir, "data-dev", "appversion")
     if os.path.exists(appver_file):
         try:
@@ -60,7 +84,7 @@ def get_fw_version(project_dir):
         except Exception:
             pass
 
-    return "v2.6.2"
+    return "error"
 
 def get_destination_dir(project_dir, version):
     dist_dir = os.path.join(project_dir, "dist", version)
