@@ -90,6 +90,8 @@
     "FW_UPDATE_APP": "Actualización de LittleFS",
     "FW_UPDATE_APP_DESC": "Actualización local de la interfaz web únicamente (.bin)",
     "FW_REFRESH_CACHE": "Limpiar caché",
+    "FW_BRANCHES_TITLE": "Ramas fusionadas",
+    "FW_BRANCHES_DESC": "Parches activos incorporados en esta compilación",
     "FW_CREDITS_DOC": "Documentación",
     "FW_CREDITS_DOC_DESC": "Guía de configuración",
     "FW_CREDITS_BUG": "Reportar un problema",

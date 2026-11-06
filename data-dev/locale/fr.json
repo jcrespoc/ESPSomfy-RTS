@@ -90,6 +90,8 @@
     "FW_UPDATE_APP": "Mise à jour LittleFS",
     "FW_UPDATE_APP_DESC": "Mise à jour locale de l'interface web uniquement (.bin)",
     "FW_REFRESH_CACHE": "Vider le cache",
+    "FW_BRANCHES_TITLE": "Branches fusionnées",
+    "FW_BRANCHES_DESC": "Correctifs actifs inclus dans ce build",
     "FW_CREDITS_DOC": "Documentation",
     "FW_CREDITS_DOC_DESC": "Guide de configuration",
     "FW_CREDITS_BUG": "Signaler un problème",
