@@ -1,12 +1,19 @@
 #!/usr/bin/env bash
 set -e
 
+# Obtener versión canónica
+VERSION=$(python3 scripts/git_version.py --version-only 2>/dev/null || python3 -c "import sys; sys.path.insert(0, 'scripts'); from git_version import get_git_version; print(get_git_version())" 2>/dev/null || echo "v2.6.2")
+DIST_DIR="dist/$VERSION"
+mkdir -p "$DIST_DIR"
+
+echo "=== Compilando versión $VERSION en $DIST_DIR ==="
+
 echo "=== 1. Minificando assets web (data-dev -> data) ==="
 python3 minify_data.py
 
 echo "=== 2. Generando LittleFS (SomfyController.littlefs.bin) ==="
 pio run -e esp32dev -t buildfs
-cp .pio/build/esp32dev/littlefs.bin SomfyController.littlefs.bin
+cp .pio/build/esp32dev/littlefs.bin "$DIST_DIR/SomfyController.littlefs.bin"
 
 # Definición de entornos, chips y offsets exactamente como en GitHub Actions
 ENVS=(
@@ -17,8 +24,6 @@ ENVS=(
   "esp32s3_4mb:ESP32-S3:0x0:SomfyController.ino.esp32s3_4mb.bin:SomfyController.onboard.esp32s3_4mb.bin"
   "esp32s3_8mb:ESP32-S3:0x0:SomfyController.ino.esp32s3_8mb.bin:SomfyController.onboard.esp32s3_8mb.bin"
 )
-
-mkdir -p dist
 
 echo "=== 3. Compilando firmwares y empaquetando imágenes onboard ==="
 for entry in "${ENVS[@]}"; do
@@ -32,19 +37,17 @@ for entry in "${ENVS[@]}"; do
     "$ADDR" ".pio/build/$ENV/bootloader.bin" \
     0x8000 ".pio/build/$ENV/partitions.bin" \
     0x10000 ".pio/build/$ENV/firmware.bin" \
-    0x290000 SomfyController.littlefs.bin
+    0x290000 "$DIST_DIR/SomfyController.littlefs.bin"
 
   echo "--> Empaquetando en ZIP..."
   zip -j ".pio/build/$ENV/$OBNAME.zip" ".pio/build/$ENV/SomfyController.onboard.bin"
 
-  # Copiar artefactos finales listos a la carpeta dist/
-  cp ".pio/build/$ENV/firmware.bin" "dist/$FWNAME"
-  cp ".pio/build/$ENV/$OBNAME.zip" "dist/$OBNAME.zip"
+  # Copiar artefactos finales listos a la carpeta dist/$VERSION/
+  cp ".pio/build/$ENV/firmware.bin" "$DIST_DIR/$FWNAME"
+  cp ".pio/build/$ENV/$OBNAME.zip" "$DIST_DIR/$OBNAME.zip"
 done
 
-cp SomfyController.littlefs.bin dist/
 echo ""
 echo "=== ¡COMPILACIÓN COMPLETADA CON ÉXITO! ==="
-echo "Los archivos listos para la Release están en la carpeta dist/:"
-ls -lh dist/
-
+echo "Los archivos listos para la Release están en la carpeta $DIST_DIR:"
+ls -lh "$DIST_DIR/"

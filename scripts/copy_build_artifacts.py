@@ -9,6 +9,15 @@ try:
 except Exception:
     env = None
 
+ENV_TO_CHIP = {
+    "esp32dev": "esp32",
+    "esp32wrover": "esp32wrover",
+    "esp32c3": "esp32c3",
+    "esp32s2": "esp32s2",
+    "esp32s3_4mb": "esp32s3_4mb",
+    "esp32s3_8mb": "esp32s3_8mb",
+}
+
 def get_project_dir():
     if "env" in globals() and env is not None:
         try:
@@ -53,6 +62,11 @@ def get_fw_version(project_dir):
 
     return "v2.6.2"
 
+def get_destination_dir(project_dir, version):
+    dist_dir = os.path.join(project_dir, "dist", version)
+    os.makedirs(dist_dir, exist_ok=True)
+    return dist_dir
+
 def copy_file(src, dst):
     try:
         os.makedirs(os.path.dirname(os.path.abspath(dst)), exist_ok=True)
@@ -66,47 +80,41 @@ def copy_file(src, dst):
     except Exception as e:
         print(f"[copy-bin] Error copying {src} to {dst}: {e}")
 
-def handle_firmware_copy(source, target, env):
-    raw_target = target[0] if isinstance(target, (list, tuple)) else target
-    src_bin = raw_target.get_abspath() if hasattr(raw_target, "get_abspath") else str(raw_target)
-    if not os.path.isfile(src_bin):
+def resolve_bin_file(arg1, arg2):
+    for arg in (arg1, arg2):
+        if not arg:
+            continue
+        raw = arg[0] if isinstance(arg, (list, tuple)) else arg
+        path = raw.get_abspath() if hasattr(raw, "get_abspath") else str(raw)
+        if os.path.isfile(path) and path.endswith(".bin"):
+            return path
+    return None
+
+def handle_firmware_copy(target, source, env):
+    src_bin = resolve_bin_file(target, source)
+    if not src_bin:
         return
 
     project_dir = get_project_dir()
     version = get_fw_version(project_dir)
     env_name = env.subst("$PIOENV") if env and hasattr(env, "subst") else "esp32dev"
+    chip = ENV_TO_CHIP.get(env_name, env_name)
 
-    names = []
-    names.append(f"{version}.{env_name}.firmware.ino.bin")
+    dest_dir = get_destination_dir(project_dir, version)
+    filename = f"SomfyController.ino.{chip}.bin"
+    copy_file(src_bin, os.path.join(dest_dir, filename))
 
-    for name in names:
-        dist_dir = os.path.join(project_dir, "dist")
-        if os.path.isdir(dist_dir):
-            copy_file(src_bin, os.path.join(dist_dir, name))
-        else:
-            copy_file(src_bin, os.path.join(project_dir, name))
-
-def handle_littlefs_copy(source, target, env):
-    raw_target = target[0] if isinstance(target, (list, tuple)) else target
-    src_bin = raw_target.get_abspath() if hasattr(raw_target, "get_abspath") else str(raw_target)
-    if not os.path.isfile(src_bin):
+def handle_littlefs_copy(target, source, env):
+    src_bin = resolve_bin_file(target, source)
+    if not src_bin:
         return
 
     project_dir = get_project_dir()
     version = get_fw_version(project_dir)
-    env_name = env.subst("$PIOENV") if env and hasattr(env, "subst") else "esp32dev"
 
-    # Targets:
-    # 1. <version>.littlefs.bin (e.g., v2.6.2.littlefs.bin)
-    names = []
-    names.append(f"{version}.{env_name}.littlefs.bin")
-
-    for name in names:        
-        dist_dir = os.path.join(project_dir, "dist")
-        if os.path.isdir(dist_dir):
-            copy_file(src_bin, os.path.join(dist_dir, name))
-        else:
-            copy_file(src_bin, os.path.join(project_dir, name))
+    dest_dir = get_destination_dir(project_dir, version)
+    filename = "SomfyController.littlefs.bin"
+    copy_file(src_bin, os.path.join(dest_dir, filename))
 
 def handle_buildfs_alias(source, target, env):
     build_dir = env.subst("$BUILD_DIR") if env and hasattr(env, "subst") else ""
