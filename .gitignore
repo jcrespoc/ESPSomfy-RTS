@@ -9,6 +9,7 @@ extdata/
 # --- Dossiers de build et fichiers de sortie ---
 build/
 data/
+include/git_build_info.h
 .cache/
 *.bin
 *.elf
@@ -24,4 +25,11 @@ cmake-build-*/
 debug_custom.json
 esp32.svd
 debug.cfg
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Secretos y credenciales
+secrets.ini
 
