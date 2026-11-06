@@ -122,8 +122,14 @@ def sync_version_files(project_dir, fw_version):
             print(f"[git-version] Warning: failed to update {js_path}: {e}")
 
 def main():
+    import sys
     proj_dir = get_project_dir()
     fw_ver = get_git_version(proj_dir)
+
+    if len(sys.argv) > 1 and sys.argv[1] in ("--version", "--version-only", "--raw", "-v"):
+        print(fw_ver)
+        return
+
     print(f"[git-version] Version resolved from Git: {fw_ver}")
 
     sync_version_files(proj_dir, fw_ver)
