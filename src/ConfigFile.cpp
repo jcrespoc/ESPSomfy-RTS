@@ -724,7 +724,7 @@ bool ShadeConfigFile::readTransRecord(transceiver_config_t &cfg) {
     cfg.RXPin = this->readUInt8(cfg.RXPin);
     cfg.frequency = this->readFloat(cfg.frequency);
     cfg.rxBandwidth = this->readFloat(cfg.rxBandwidth);
-    cfg.deviation = this->readFloat(cfg.deviation);
+    this->readFloat(0.0f); // legacy deviation field in shades.cfg
     cfg.txPower = this->readInt8(cfg.txPower);
     if(this->file.position() != startPos + this->header.transRecordSize) {
       Serial.println("Reading to end of transceiver record");
@@ -1095,7 +1095,7 @@ bool ShadeConfigFile::writeTransRecord(transceiver_config_t &cfg) {
   this->writeUInt8(cfg.RXPin);
   this->writeFloat(cfg.frequency, 3);
   this->writeFloat(cfg.rxBandwidth, 2);
-  this->writeFloat(cfg.deviation, 2);
+  this->writeFloat(0.0f, 2); // legacy deviation field in shades.cfg
   this->writeInt8(cfg.txPower, CFG_REC_END);
   return true;
 }

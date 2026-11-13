@@ -441,7 +441,6 @@ struct transceiver_config_t {
     uint8_t CSNPin = 5;
     bool radioInit = false;
     float frequency = 433.42;         // Basic frequency
-    float deviation = 47.60;          // Set the Frequency deviation in kHz. Value from 1.58 to 380.85. Default is 47.60 kHz.
     float rxBandwidth = 99.97;        // Receive bandwidth in kHz.  Value from 58.03 to 812.50.  Default is 99.97kHz.
     int8_t txPower = 10;              // Transmission power {-30, -20, -15, -10, -6, 0, 5, 7, 10, 11, 12}.  Default is 12.
 /*    

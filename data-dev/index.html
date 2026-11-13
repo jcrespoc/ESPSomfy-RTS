@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -1690,41 +1690,6 @@
                                         <button type="button" class="step-btn" onclick="somfy.setStep('bandwidth', 1)">1</button>
                                         <button type="button" class="step-btn" onclick="somfy.setStep('bandwidth', 10)">10</button>
                                         <button type="button" class="step-btn" onclick="somfy.setStep('bandwidth', 100)">100</button>
-                                    </div>
-                                </div>
-                            </div>
-                            <hr>
-                            <div>
-                                <div class="blocRadioHeader">
-                                    <div class="blocRadioHeaderTitle">
-                                        <div class="help-container" onclick="toggleTooltip(this)">
-                                            <svg class="help-svg">
-                                                <use href=#icon-question></use>
-                                            </svg>
-                                            <div class="tooltip-text" tr="RADIO_FREQ_DEVIATION_HELP"></div>
-                                        </div>
-                                        <label for="slidDeviation" tr="RADIO_FREQ_DEVIATION"></label>
-                                    </div>
-                                    <div class="numberfield">
-                                        <span>
-                                            <span id="spanDeviation" data-bind="transceiver.config.deviation" data-datatype="float" data-fmttype="number" data-fmtmask="#,###.000">
-                                            </span>
-                                            <span tr="KHz"></span>
-                                        </span>
-                                    </div>
-                                </div>
-                                <div class="blocRadioSlider">
-                                    <button type="button" class="radioBtnPrec" onclick="somfy.stepValue('slidDeviation', -1)">
-                                        <svg class="radioArrowSvg"><use href=#svg-arrowLeft></use></svg>
-                                    </button>
-                                    <input id="slidDeviation" class="RadioSlider" name="deviation" type="range" min="158" max="38085" step="1" data-bind="transceiver.config.deviation" data-setonly="true" data-datatype="float" data-mult="100" oninput="somfy.deviationChanged(this);" />
-                                    <button type="button" class="radioBtnPrec" onclick="somfy.stepValue('slidDeviation', 1)">
-                                        <svg class="radioArrowSvg"><use href=#svg-arrowRight></use></svg>
-                                    </button>
-                                    <div id="stepButtonsDeviation" class="radioStepButtons">
-                                        <button type="button" class="step-btn" onclick="somfy.setStep('deviation', 1)">1</button>
-                                        <button type="button" class="step-btn" onclick="somfy.setStep('deviation', 10)">10</button>
-                                        <button type="button" class="step-btn" onclick="somfy.setStep('deviation', 100)">100</button>
                                     </div>
                                 </div>
                             </div>

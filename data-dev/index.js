@@ -973,7 +973,6 @@ async function init() {
     firmware.init();
     somfy.setStep('freq', 1);
     somfy.setStep('bandwidth', 1);
-    somfy.setStep('deviation', 1);
 
     bindNavigation();
     if (typeof ui !== 'undefined' && !ui.isConfigOpen()) {
@@ -3083,7 +3082,7 @@ class Somfy {
         this.loadPins('input', get('selTransRXPin'));
 
         ui.toElement(get('divTransceiverSettings'), {
-            transceiver: { config: { proto: 0, radioBoardType: 0, SCKPin: 18, CSNPin: 5, MOSIPin: 23, MISOPin: 19, TXPin: 13, RXPin: 12, frequency: 433.42, rxBandwidth: 97.96, type: 56, deviation: 11.43, txPower: 10, enabled: false } }
+            transceiver: { config: { proto: 0, radioBoardType: 0, SCKPin: 18, CSNPin: 5, MOSIPin: 23, MISOPin: 19, TXPin: 13, RXPin: 12, frequency: 433.42, rxBandwidth: 203.12, type: 56, txPower: 10, enabled: false } }
         });
 
         this.loadPins('out', get('selShadeGPIOUp'));
@@ -3262,7 +3261,7 @@ class Somfy {
         // ui.getValue() applies the conversions declared in index.html -- data-mult="100" for both
         // bandwidths, and data-datatype="index" + data-values for the power, which is an INDEX on
         // the slider but dBm to the firmware.
-        [['rxBandwidth', 'slidRxBandwidth'], ['deviation', 'slidDeviation'], ['txPower', 'slidTxPower']]
+        [['rxBandwidth', 'slidRxBandwidth'], ['txPower', 'slidTxPower']]
         .forEach(([k, id]) => {
             const el = get(id);
             if (!el) return;
@@ -3563,8 +3562,7 @@ class Somfy {
     setStep(type, stepValue) {
         const map = {
             'freq':      { slider: 'slidFrequency',   container: '#stepButtons' },
-            'bandwidth': { slider: 'slidRxBandwidth', container: '#stepButtonsRx' },
-            'deviation': { slider: 'slidDeviation',   container: '#stepButtonsDeviation' }
+            'bandwidth': { slider: 'slidRxBandwidth', container: '#stepButtonsRx' }
         };
 
         const config = map[type];
@@ -5612,9 +5610,6 @@ class Somfy {
                 this.setLinkedRemotesList(shade);
             });
         });
-    }
-    deviationChanged(el) {
-        get('spanDeviation').innerText = (el.value / 100).fmt('#,##0.00');
     }
     rxBandwidthChanged(el) {
         get('spanRxBandwidth').innerText = (el.value / 100).fmt('#,##0.00');
