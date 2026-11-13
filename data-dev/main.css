@@ -1279,8 +1279,7 @@ display: none;
     font-size: 16px;
 }
 #stepButtons,
-#stepButtonsRx,
-#stepButtonsDeviation {
+#stepButtonsRx {
     display: flex;
     gap: 5px;
     align-content: flex-end;
@@ -1290,9 +1289,7 @@ display: none;
 #stepButtons > .step-btn,
 #stepButtons > .step-btn.active,
 #stepButtonsRx > .step-btn,
-#stepButtonsRx > .step-btn.active,
-#stepButtonsDeviation > .step-btn,
-#stepButtonsDeviation > .step-btn.active {
+#stepButtonsRx > .step-btn.active {
     width: 33px;
     padding: 0;
     height: 25px;
@@ -1304,8 +1301,7 @@ display: none;
     border: none;
 }
 #stepButtons > .step-btn.active,
-#stepButtonsRx > .step-btn.active,
-#stepButtonsDeviation > .step-btn.active {
+#stepButtonsRx > .step-btn.active {
     background: var(--accent-colorUniDark);
     color: var(--color);
 }

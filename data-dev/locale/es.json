@@ -344,8 +344,6 @@
     "RADIO_BASE_FREQUENCY_HELP": "Frecuencia central de comunicación. Valor estándar: 433,42 MHz. Ajusta en incrementos mínimos si la recepción es deficiente. Vuelve a 433,42 MHz si tienes dudas.",
     "RADIO_RX_BANDWIDTH": "Ancho de banda RX",
     "RADIO_RX_BANDWIDTH_HELP": "Controla el ancho del espectro monitorizado. Más estrecho filtra más ruido (mayor alcance). Más ancho facilita la captura de la señal.",
-    "RADIO_FREQ_DEVIATION": "Desviación de frecuencia",
-    "RADIO_FREQ_DEVIATION_HELP": "Determina el margen necesario para distinguir los bits de datos. Una desviación alta requiere una señal fuerte. Una desviación baja aumenta la sensibilidad pero capta más ruido.",
     "RADIO_TX_POWER": "Potencia TX",
     "RADIO_TX_POWER_HELP": "Potencia de transmisión. 10 dBm es suficiente para la mayoría de configuraciones. Usa 12 dBm solo si tu hardware lo admite específicamente.",
     "RADIO_KEY": "Clave",

@@ -218,8 +218,8 @@ void somfy_frame_t::decodeFrame(byte* frame) {
         }
     }
     if(this->valid && this->encKey == 0) this->valid = false; 
-    if (!this->valid) {
-        Serial.print("INVALID FRAME ");
+    //if (!this->valid) {
+        Serial.printf("%s FRAME ", this->valid ? "VALID" : "INVALID");
         Serial.print("KEY:");
         Serial.print(this->encKey);
         Serial.print(" ADDR:");
@@ -250,7 +250,8 @@ void somfy_frame_t::decodeFrame(byte* frame) {
             Serial.print(" ");
         }
         Serial.println();
-    }
+        Serial.println("--------------------------------");
+    //}
 }
 void somfy_frame_t::decodeFrame(somfy_rx_t *rx) {
   this->hwsync = rx->cpt_synchro_hw;
@@ -4381,27 +4382,27 @@ void somfy_rx_queue_t::init() {
   memset(&this->index[0], 0xFF, MAX_RX_BUFFER);
   this->length = 0;
 }
-void somfy_rx_queue_t::push(somfy_rx_t *rx) {
+void RECEIVE_ATTR somfy_rx_queue_t::push(somfy_rx_t *rx) {
   // Since we are operating within the interrupt all data really needs to be static
   // for the handoff to the frame decoder.  For this reason we are buffering up to
   // 3 total frames.  Althought it may not matter considering the length of a packet
   // will likely not push over the loop timing.  For now lets assume that there
   // may be some pressure on the loop for features.
-  if (this->length >= MAX_RX_BUFFER) {
+  if(this->length >= MAX_RX_BUFFER) {
     uint8_t ndx = this->index[MAX_RX_BUFFER - 1];
-    if (ndx < MAX_RX_BUFFER) this->items[ndx].pulseCount = 0;
+    if(ndx < MAX_RX_BUFFER) this->items[ndx].pulseCount = 0;
     this->index[MAX_RX_BUFFER - 1] = 255;
     this->length--;
   }
   uint8_t first = 0;
-  for (uint8_t i = 0; i < MAX_RX_BUFFER; i++) {
-    if (this->items[i].pulseCount == 0) {
+  for(uint8_t i = 0; i < MAX_RX_BUFFER; i++) {
+    if(this->items[i].pulseCount == 0) {
       first = i;
       memcpy(&this->items[i], rx, sizeof(somfy_rx_t));
       break;
     }
   }
-  for (uint8_t i = MAX_RX_BUFFER - 1; i > 0; i--) {
+  for(uint8_t i = MAX_RX_BUFFER - 1; i > 0; i--) {
     this->index[i] = this->index[i - 1];
   }
   this->length++;
@@ -4847,7 +4848,7 @@ void transceiver_config_t::fromJSON(JsonObject& obj) {
     //Serial.print("Deserialize Radio JSON ");
     // Guards on !isNull() and not on containsKey(): containsKey() is TRUE for a key carrying an
     // explicit null, and assigning that null to a float or an integer silently yields 0. That is
-    // how rxBandwidth, deviation and txPower fell to 0 -- the UI read them from an unpopulated
+    // how rxBandwidth and txPower fell to 0 -- the UI read them from an unpopulated
     // <span> (when /controller failed), which produced "rxBandwidth":null in the payload. isNull()
     // covers both cases at once, missing key and explicit null, while a legitimate false or 0 is
     // NOT null and passes normally.
@@ -4860,7 +4861,6 @@ void transceiver_config_t::fromJSON(JsonObject& obj) {
     if(!obj["TXPin"].isNull()) this->TXPin = obj["TXPin"];
     if(!obj["rxBandwidth"].isNull()) this->rxBandwidth = obj["rxBandwidth"]; // float
     if(!obj["frequency"].isNull()) this->frequency = obj["frequency"];  // float
-    if(!obj["deviation"].isNull()) this->deviation = obj["deviation"];  // float
     if(!obj["enabled"].isNull()) this->enabled = obj["enabled"];
     if(!obj["txPower"].isNull()) this->txPower = obj["txPower"];
     if(!obj["proto"].isNull()) this->proto = static_cast<radio_proto>(obj["proto"].as<uint8_t>());
@@ -4902,7 +4902,6 @@ void transceiver_config_t::toJSON(JsonResponse &json) {
     json.addElem("CSNPin", this->CSNPin);
     json.addElem("rxBandwidth", this->rxBandwidth); // float
     json.addElem("frequency", this->frequency);  // float
-    json.addElem("deviation", this->deviation);  // float
     json.addElem("txPower", this->txPower);
     json.addElem("proto", static_cast<uint8_t>(this->proto));
     json.addElem("enabled", this->enabled);
@@ -4920,7 +4919,6 @@ void transceiver_config_t::toJSON(JsonObject& obj) {
     obj["CSNPin"] = this->CSNPin;
     obj["rxBandwidth"] = this->rxBandwidth; // float
     obj["frequency"] = this->frequency;  // float
-    obj["deviation"] = this->deviation;  // float
     obj["txPower"] = this->txPower;
     obj["proto"] = static_cast<uint8_t>(this->proto);
     //obj["internalCCMode"] = this->internalCCMode;
@@ -4963,7 +4961,6 @@ void transceiver_config_t::save() {
     pref.putUChar("MISOPin", this->MISOPin);
     pref.putUChar("CSNPin", this->CSNPin);
     pref.putFloat("frequency", this->frequency);  // float
-    pref.putFloat("deviation", this->deviation);  // float
     pref.putFloat("rxBandwidth", this->rxBandwidth); // float
     pref.putBool("enabled", this->enabled);
     pref.putBool("radioInit", true);
@@ -5056,12 +5053,12 @@ void transceiver_config_t::load() {
     this->MISOPin = pref.getUChar("MISOPin", this->MISOPin);
     this->CSNPin = pref.getUChar("CSNPin", this->CSNPin);
     this->frequency = pref.getFloat("frequency", this->frequency);  // float
-    this->deviation = pref.getFloat("deviation", this->deviation);  // float
     this->enabled = pref.getBool("enabled", this->enabled);
     this->txPower = pref.getChar("txPower", this->txPower);
     this->rxBandwidth = pref.getFloat("rxBandwidth", this->rxBandwidth);
     this->proto = static_cast<radio_proto>(pref.getChar("proto", static_cast<uint8_t>(this->proto)));
     this->radioBoardType = pref.getUChar("radioBoardType", 0);
+    this->removeNVSKey("deviation");
     this->removeNVSKey("internalCCMode");
     this->removeNVSKey("modulationMode");
     this->removeNVSKey("channel");
@@ -5116,7 +5113,6 @@ void transceiver_config_t::apply() {
       ELECHOUSE_cc1101.setCCMode(0);                            // set config for internal transmission mode.
       ELECHOUSE_cc1101.setMHZ(this->frequency);                 // Here you can set your basic frequency. The lib calculates the frequency automatically (default = 433.92).The cc1101 can: 300-348 MHZ, 387-464MHZ and 779-928MHZ. Read More info from datasheet.
       ELECHOUSE_cc1101.setRxBW(this->rxBandwidth);              // Set the Receive Bandwidth in kHz. Value from 58.03 to 812.50. Default is 812.50 kHz.
-      ELECHOUSE_cc1101.setDeviation(this->deviation);           // Set the Frequency deviation in kHz. Value from 1.58 to 380.85. Default is 47.60 kHz.
       ELECHOUSE_cc1101.setPA(this->txPower);                    // Set TxPower. The following settings are possible depending on the frequency band.  (-30  -20  -15  -10  -6    0    5    7    10   11   12) Default is max!
       ELECHOUSE_cc1101.setModulation(2);                        // Set modulation mode. 0 = 2-FSK, 1 = GFSK, 2 = ASK/OOK, 3 = 4-FSK, 4 = MSK.
       ELECHOUSE_cc1101.setManchester(1);                        // Enables Manchester encoding/decoding. 0 = Disable. 1 = Enable.
