@@ -12,6 +12,7 @@ public:
   void sendCacheHeaders(uint32_t seconds = 604800);
   void startup();
   void handleLogin(WebServer &server);
+  void handleLoginChallenge(WebServer &server);
   void handleLogout(WebServer &server);
   void handleStreamFile(WebServer &server, const char *filename, const char *encoding);
   void handleController(WebServer &server);

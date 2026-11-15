@@ -62,7 +62,7 @@ static const char _encoding_json[] = "application/json";
 // does.
 enum class route_access : uint8_t { Public, Control, ControlRead, Config };
 static route_access routeAccess(const char *uri) {
-  static const char *pub[] = { "/", "/login", "/loginContext", "/lang", "/upnp.xml",
+  static const char *pub[] = { "/", "/login", "/loginContext", "/loginChallenge", "/logout", "/lang", "/upnp.xml",
     "/index.js", "/base.css", "/main.css", "/overlays.css", "/favicon.svg", "/editionWifi.webp", "/editionEthernet.webp" };
   // /modulesettings is here rather than in Config: the dashboard needs it to render (version,
   // chip model, and the data-chipmodel attribute the pin table depends on), and nothing in it is
@@ -157,12 +157,8 @@ void Web::loop() {
   delay(1);
 }
 void Web::sendCORSHeaders(WebServer &server) { 
-    //server.sendHeader(F("Connection"), F("Keep-Alive")); 
-    //server.sendHeader(F("Keep-Alive"), F("timeout=5, max=1000"));
-    //server.sendHeader(F("Access-Control-Allow-Origin"), F("*"));
-    //server.sendHeader(F("Access-Control-Max-Age"), F("600"));
-    //server.sendHeader(F("Access-Control-Allow-Methods"), F("PUT,POST,GET,OPTIONS"));
-    //server.sendHeader(F("Access-Control-Allow-Headers"), F("*"));
+    server.sendHeader(F("X-Frame-Options"), F("DENY"));
+    server.sendHeader(F("X-Content-Type-Options"), F("nosniff"));
 }
 void Web::sendCacheHeaders(uint32_t seconds) {
   server.sendHeader(F("Cache-Control"), F("public, max-age=604800, immutable"));
@@ -249,8 +245,41 @@ struct login_tracker_t {
   uint16_t fails = 0;
   uint32_t lockUntil = 0;   // echelle millis()
   uint32_t lastSeen = 0;
+  char challenge[17] = "";
+  uint32_t challengeTime = 0;
 };
 static login_tracker_t g_loginTrackers[LOGIN_TRACK_SLOTS];
+
+static void generateLoginChallenge(login_tracker_t &t) {
+  uint8_t randBytes[8];
+  esp_fill_random(randBytes, sizeof(randBytes));
+  for(size_t i = 0; i < sizeof(randBytes); i++) {
+    snprintf(&t.challenge[i * 2], 3, "%02x", randBytes[i]);
+  }
+  t.challenge[16] = '\0';
+  t.challengeTime = millis();
+}
+static bool isValidChallenge(const login_tracker_t &t, const char *challenge) {
+  if(t.challenge[0] == '\0' || !challenge || challenge[0] == '\0') return false;
+  if((uint32_t)(millis() - t.challengeTime) > 120000UL) return false;
+  return strcmp(t.challenge, challenge) == 0;
+}
+static void computeSha256Hex(const char *input, char *outputHex) {
+  byte hash[32];
+  mbedtls_md_context_t ctx;
+  mbedtls_md_init(&ctx);
+  mbedtls_md_setup(&ctx, mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), 0);
+  mbedtls_md_starts(&ctx);
+  mbedtls_md_update(&ctx, (const unsigned char *)input, strlen(input));
+  mbedtls_md_finish(&ctx, hash);
+  mbedtls_md_free(&ctx);
+  outputHex[0] = '\0';
+  for(int i = 0; i < sizeof(hash); i++) {
+    char str[3];
+    sprintf(str, "%02x", (int)hash[i]);
+    strcat(outputHex, str);
+  }
+}
 
 // Compared as a signed difference: millis() wraps to zero every ~49 days, and a naive
 // `millis() < lockUntil` would then lock for the whole length of the cycle.
@@ -268,6 +297,7 @@ static login_tracker_t *loginTrackerFor(const IPAddress &addr) {
       if(!loginIsLocked(t) && (uint32_t)(now - t.lastSeen) >= LOGIN_DECAY_MS) {
         t.fails = 0;
         t.lockUntil = 0;
+        t.challenge[0] = '\0';
       }
       t.lastSeen = now;
       return &t;
@@ -295,6 +325,8 @@ static login_tracker_t *loginTrackerFor(const IPAddress &addr) {
   pick->fails = 0;
   pick->lockUntil = 0;
   pick->lastSeen = now;
+  pick->challenge[0] = '\0';
+  pick->challengeTime = 0;
   return pick;
 }
 // Lock duration after `fails` failures: doubling on each failure past the free quota, capped.
@@ -400,8 +432,21 @@ void Web::handleSetLang(WebServer &server) {
     settings.save();
     server.send(200, _encoding_json, "{\"status\":\"ok\"}");
 }
+void Web::handleLoginChallenge(WebServer &server) {
+  webServer.sendCORSHeaders(server);
+  if(server.method() == HTTP_OPTIONS) { server.send(200, "OK"); return; }
+  IPAddress clientAddr = server.client().remoteIP();
+  login_tracker_t *tracker = loginTrackerFor(clientAddr);
+  generateLoginChallenge(*tracker);
+  StaticJsonDocument<128> doc;
+  doc["challenge"] = tracker->challenge;
+  serializeJson(doc, g_content);
+  server.send(200, _encoding_json, g_content);
+}
 void Web::handleLogout(WebServer &server) {
   Serial.println("Logging out of webserver");
+  login_tracker_t *tracker = loginTrackerFor(server.client().remoteIP());
+  if(tracker) tracker->challenge[0] = '\0';
   server.sendHeader("Location", "/");
   server.sendHeader("Cache-Control", "no-cache");
   server.sendHeader("Set-Cookie", "ESPSOMFYID=0");
@@ -414,7 +459,8 @@ void Web::handleLogin(WebServer &server) {
     JsonObject obj = doc.to<JsonObject>();
     char token[65];
     memset(&token, 0x00, sizeof(token));
-    this->createAPIToken(server.client().remoteIP(), token);
+    IPAddress clientAddr = server.client().remoteIP();
+    this->createAPIToken(clientAddr, token);
     obj["type"] = static_cast<uint8_t>(settings.Security.type);
     if(settings.Security.type == security_types::None) {
       obj["apiKey"] = token;
@@ -428,9 +474,13 @@ void Web::handleLogin(WebServer &server) {
     char username[33] = "";
     char password[33] = "";
     char pin[5] = "";
+    char challenge[17] = "";
+    char response[65] = "";
     memset(username, 0x00, sizeof(username));
     memset(password, 0x00, sizeof(password));
     memset(pin, 0x00, sizeof(pin));
+    memset(challenge, 0x00, sizeof(challenge));
+    memset(response, 0x00, sizeof(response));
     if(server.hasArg("plain")) {
       DynamicJsonDocument docin(512);
       DeserializationError err = deserializeJson(docin, server.arg("plain"));
@@ -443,17 +493,22 @@ void Web::handleLogin(WebServer &server) {
           if(objin.containsKey("username") && objin["username"]) strlcpy(username, objin["username"], sizeof(username));
           if(objin.containsKey("password") && objin["password"]) strlcpy(password, objin["password"], sizeof(password));
           if(objin.containsKey("pin") && objin["pin"]) strlcpy(pin, objin["pin"], sizeof(pin));
+          if(objin.containsKey("challenge") && objin["challenge"]) strlcpy(challenge, objin["challenge"], sizeof(challenge));
+          if(objin.containsKey("response") && objin["response"]) strlcpy(response, objin["response"], sizeof(response));
       }
     }
     else {
       if(server.hasArg("username")) strlcpy(username, server.arg("username").c_str(), sizeof(username));
       if(server.hasArg("password")) strlcpy(password, server.arg("password").c_str(), sizeof(password));
       if(server.hasArg("pin")) strlcpy(pin, server.arg("pin").c_str(), sizeof(pin));
+      if(server.hasArg("challenge")) strlcpy(challenge, server.arg("challenge").c_str(), sizeof(challenge));
+      if(server.hasArg("response")) strlcpy(response, server.arg("response").c_str(), sizeof(response));
     }
     // Brute-force protection: a lock is active FOR THIS ADDRESS, so refuse without even comparing
     // the credentials. The slot is resolved here once, and reused below.
-    login_tracker_t *tracker = loginTrackerFor(server.client().remoteIP());
+    login_tracker_t *tracker = loginTrackerFor(clientAddr);
     if(loginIsLocked(*tracker)) {
+      tracker->challenge[0] = '\0';
       uint32_t retryAfter = (uint32_t)((tracker->lockUntil - millis() + 999) / 1000);
       obj["success"] = false;
       obj["msg"] = "Too many attempts. Please wait.";
@@ -462,37 +517,59 @@ void Web::handleLogin(WebServer &server) {
       server.send(429, _encoding_json, g_content);
       return;
     }
-    // At this point we should have all the data we need to login.
-    if(settings.Security.type == security_types::PinEntry) {
-      if(strlen(pin) == 0 || strcmp(pin, settings.Security.pin) != 0) {
-        obj["success"] = false;
-        obj["msg"] = "Invalid Pin Entry";
+
+    bool authValid = false;
+    const char *failMsg = "Invalid credentials";
+
+    if(strlen(challenge) > 0 && strlen(response) == 64) {
+      if(!isValidChallenge(*tracker, challenge)) {
+        authValid = false;
+        failMsg = "Expired or invalid challenge";
       }
       else {
-        obj["success"] = true;
-        obj["msg"] = "Login successful";
-        obj["apiKey"] = token;
+        char expected[65];
+        if(settings.Security.type == security_types::PinEntry) {
+          computeSha256Hex((String(settings.Security.pin) + ":" + challenge).c_str(), expected);
+          failMsg = "Invalid Pin Entry";
+        }
+        else if(settings.Security.type == security_types::Password) {
+          computeSha256Hex((String(settings.Security.username) + ":" + String(settings.Security.password) + ":" + challenge).c_str(), expected);
+          failMsg = "Invalid username or password";
+        }
+
+        uint8_t diff = 0;
+        for(size_t i = 0; i < 64; i++) diff |= tolower((uint8_t)response[i]) ^ tolower((uint8_t)expected[i]);
+        authValid = (diff == 0);
       }
     }
-    else if(settings.Security.type == security_types::Password) {
-      if(strlen(username) == 0 || strlen(password) == 0 || strcmp(username, settings.Security.username) != 0 || strcmp(password, settings.Security.password) != 0) {
-        obj["success"] = false;
-        obj["msg"] = "Invalid username or password";
+    else {
+      if(settings.Security.type == security_types::PinEntry) {
+        authValid = (strlen(pin) > 0 && strcmp(pin, settings.Security.pin) == 0);
+        failMsg = "Invalid Pin Entry";
       }
-      else {
-        obj["success"] = true;
-        obj["msg"] = "Login successful";
-        obj["apiKey"] = token;
+      else if(settings.Security.type == security_types::Password) {
+        authValid = (strlen(username) > 0 && strlen(password) > 0 &&
+                     strcmp(username, settings.Security.username) == 0 &&
+                     strcmp(password, settings.Security.password) == 0);
+        failMsg = "Invalid username or password";
       }
     }
-    if(obj["success"] == true) {
+
+    // Single-use guarantee: any login attempt invalidates the current challenge immediately
+    tracker->challenge[0] = '\0';
+
+    if(authValid) {
+      obj["success"] = true;
+      obj["msg"] = "Login successful";
+      obj["apiKey"] = token;
       tracker->fails = 0;
       tracker->lockUntil = 0;
     }
     else {
+      obj["success"] = false;
+      obj["msg"] = failMsg;
       if(tracker->fails < 1000) tracker->fails++;
       if(tracker->fails > LOGIN_FREE_ATTEMPTS) {
-        // Past the free quota: lock THIS address, doubling on each new failure.
         uint32_t secs = loginLockoutSeconds(tracker->fails);
         tracker->lockUntil = millis() + (secs * 1000UL);
         obj["retryAfter"] = secs;
@@ -500,8 +577,6 @@ void Web::handleLogin(WebServer &server) {
         server.send(429, _encoding_json, g_content);
         return;
       }
-      // Still inside the quota of free attempts: report where we stand, so the UI can warn rather
-      // than let the user discover the lock.
       obj["attempt"] = tracker->fails;
       obj["maxAttempts"] = LOGIN_FREE_ATTEMPTS;
     }
@@ -611,6 +686,11 @@ void Web::handleLoginContext(WebServer &server) {
     // there is no session, and all the client code tests `type === 0 || authenticated`.
     resp.addElem("authenticated",
       settings.Security.type == security_types::None ? false : webServer.checkAuth(server, true));
+    if(settings.Security.type != security_types::None) {
+      login_tracker_t *tracker = loginTrackerFor(server.client().remoteIP());
+      generateLoginChallenge(*tracker);
+      resp.addElem("challenge", tracker->challenge);
+    }
     resp.addElem("serverId", settings.serverId);
     resp.addElem("version", settings.fwVersion.name);
     resp.addElem("model", "ESPSomfyRTS");
@@ -1433,6 +1513,8 @@ void Web::begin() {
   apiServer.on("/shades", []() { webServer.handleGetShades(apiServer); });
   apiServer.on("/groups", []() { webServer.handleGetGroups(apiServer); });
   apiServer.on("/login", []() { webServer.handleLogin(apiServer); });
+  apiServer.on("/loginChallenge", []() { webServer.handleLoginChallenge(apiServer); });
+  apiServer.on("/logout", []() { webServer.handleLogout(apiServer); });
   apiServer.onNotFound([]() { webServer.handleNotFound(apiServer); });
   apiServer.on("/controller", []() { webServer.handleController(apiServer); });
   apiServer.on("/shadeCommand", []() { webServer.handleShadeCommand(apiServer); });
@@ -1460,7 +1542,9 @@ void Web::begin() {
   server.on("/upnp.xml", []() { SSDP.schema(server.client()); });
   server.on("/", []() { webServer.handleStreamFile(server, "/index.html.gz", _encoding_html); });
   server.on("/login", []() { webServer.handleLogin(server); });
+  server.on("/loginChallenge", []() { webServer.handleLoginChallenge(server); });
   server.on("/loginContext", []() { webServer.handleLoginContext(server); });
+  server.on("/logout", []() { webServer.handleLogout(server); });
   server.on("/shades.cfg", []() { webServer.handleStreamFile(server, "/shades.cfg", _encoding_text); });
   server.on("/shades.tmp", []() { webServer.handleStreamFile(server, "/shades.tmp", _encoding_text); });
   server.on("/getReleases", []() {
@@ -2603,6 +2687,8 @@ void Web::begin() {
       JsonObject obj = doc.as<JsonObject>();
       settings.Security.fromJSON(obj);
       settings.Security.save();
+      // Invalidate all pending challenges when security settings change
+      for(uint8_t i = 0; i < LOGIN_TRACK_SLOTS; i++) g_loginTrackers[i].challenge[0] = '\0';
       // The token derives from the PIN/password: sockets already open now hold a wrong key, yet
       // would stay subscribed to the full shade state. They are cut, and the client will reconnect
       // with the new key (the one returned just below).
