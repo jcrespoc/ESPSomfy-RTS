@@ -318,13 +318,17 @@ bool Web::createAPIPasswordToken(const IPAddress ipAddress, const char *username
   return this->createAPIToken((String(username) + ":" + String(password) + ":" + ipAddress.toString()).c_str(), token);
 }
 bool Web::createAPIToken(const char *payload, char *token) {
+    settings.Security.ensureSecret();
     byte hmacResult[32];
     mbedtls_md_context_t ctx;
     mbedtls_md_type_t md_type = MBEDTLS_MD_SHA256;
+    mbedtls_md_init(&ctx);
     mbedtls_md_setup(&ctx, mbedtls_md_info_from_type(md_type), 1);
-    mbedtls_md_hmac_starts(&ctx, (const unsigned char *)settings.serverId, strlen(settings.serverId));
+    const char *key = (strlen(settings.Security.secret) > 0) ? settings.Security.secret : settings.serverId;
+    mbedtls_md_hmac_starts(&ctx, (const unsigned char *)key, strlen(key));
     mbedtls_md_hmac_update(&ctx, (const unsigned char *)payload, strlen(payload)); 
     mbedtls_md_hmac_finish(&ctx, hmacResult);
+    mbedtls_md_free(&ctx);
     // Neither the token nor the PIN is logged: the serial line is readable by anyone who opens the
     // enclosure, and the token is worth the session.
     token[0] = '\0';
