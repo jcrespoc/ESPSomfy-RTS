@@ -23,6 +23,9 @@
 #ifdef ELOG_SYSLOG_ENABLE
 extern ConfigSettings settings;
 #endif
+#ifdef ELOG_SPIFFS_ENABLE
+extern ConfigSettings settings;
+#endif
 
 void logf(uint8_t level, const char *format, ...) {
   if (xPortInIsrContext()) {
@@ -121,11 +124,13 @@ void LoggerInit() {
   #ifndef ELOG_SERIAL_DISABLED
   Logger.registerSerial(MAINLOG, ELOG_SERIAL_LEVEL, "Serial", RealHardwareSerial,  ELOG_FLAG_NO_SERVICE | ELOG_FLAG_TIME_SHORT);
 
-  #ifdef ELOG_INTERNAL_LOGGING
+  //#define ELOG_INTERNAL_LOGGING_ENABLED
+  #ifdef ELOG_INTERNAL_LOGGING_ENABLED
   Logger.configureInternalLogging(RealHardwareSerial, ELOG_LEVEL_INFO, 60*1000);
   #endif
-  #ifdef ELOG_QUERY_ENABLE
-  Logger.enableQuery(RealHardwareSerial);  
+  
+  #ifdef ELOG_QUERY_ENABLED
+  Logger.enableQuery(RealHardwareSerial);
   #endif
   #endif
 
@@ -139,7 +144,34 @@ void LoggerInit() {
   #endif // ELOG_SYSLOG_ENABLE
 
   #ifdef ELOG_SPIFFS_ENABLE
-  Logger.configureSpiffs(2);
-  Logger.registerSpiffs(FILELOG, ELOG_SPIFFS_LEVEL, "espsomfy", ELOG_FLAG_NO_SERVICE, 10000);
+  #ifndef ELOG_SPIFFS_FILESIZE
+  #define ELOG_SPIFFS_FILESIZE 100*1024 // 100 KB
+  #endif
+  Logger.configureSpiffs();
+  Logger.registerSpiffs(FILELOG, ELOG_SPIFFS_LEVEL, "espsomfy", ELOG_FLAG_NO_SERVICE, ELOG_SPIFFS_FILESIZE);
+  #endif
+}
+
+void applyLogSettings(const LogSettings& cfg) {  
+  #ifndef ELOG_SERIAL_DISABLED
+  Logger.setSerialLogLevel(MAINLOG, cfg.serialLevel, RealHardwareSerial);
+  #endif
+
+  #ifdef ELOG_WS_ENABLE
+  Logger.setSerialLogLevel(WSLOG, cfg.wsLevel, wsLogStream);
+  #endif
+
+  #ifdef ELOG_SYSLOG_ENABLE
+  if (strlen(cfg.syslogHost) > 0 && cfg.syslogPort > 0 && cfg.syslogPort < 65536) {
+    Logger.setSyslogServer(cfg.syslogHost, cfg.syslogPort);
+    Logger.setSyslogLogLevel(SYSLOG, cfg.syslogLevel, ELOG_FAC_SYSLOG);
+  }
+  if (settings.hostname != NULL) {
+    Logger.configureSyslog(ELOG_SYSLOG_HOST, ELOG_SYSLOG_PORT, settings.hostname, false, 5000, 50);
+  }
+  #endif
+
+  #ifdef ELOG_SPIFFS_ENABLE
+  Logger.setSpiffsLogLevel(FILELOG, cfg.spiffsLevel, "espsomfy");
   #endif
 }
