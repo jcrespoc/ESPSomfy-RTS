@@ -3,7 +3,7 @@
 #ifndef configsettings_h
 #define configsettings_h
 #include "WResp.h"
-#define FW_VERSION "v2.6.2"
+#define FW_VERSION "v2.6.3"
 enum class conn_types_t : byte {
     unset = 0x00,
     wifi = 0x01,
@@ -191,6 +191,7 @@ class ConfigSettings: BaseSettings {
     bool checkForUpdate = true;
     bool swShowGpio = false;
     uint8_t boxEdition = 0;
+    bool langAsked = false;
     uint8_t status;
     uint8_t language = 0;
     IPSettings IP;

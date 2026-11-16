@@ -429,6 +429,7 @@ void Web::handleSetLang(WebServer &server) {
     else if(lang == "de") settings.language = 2;
     else if(lang == "es") settings.language = 3;
 
+    settings.langAsked = true;
     settings.save();
     server.send(200, _encoding_json, "{\"status\":\"ok\"}");
 }
