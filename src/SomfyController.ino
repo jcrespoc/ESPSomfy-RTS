@@ -39,7 +39,7 @@ void setup() {
   if(_pendingNetSecuRecovery) resetAccessAndNetworkConfig();
   if(WiFi.status() == WL_CONNECTED) WiFi.disconnect(true);
   delay(10);
-  Serial.println();
+  Serial.println("-  -  -  -  -  -  -  -  -  -");
   webServer.startup();
   webServer.begin();
   delay(1000);
@@ -90,5 +90,15 @@ void loop() {
     net.end();
     ESP.restart();
   }
+
+  //{  //bug hunting. remove when stable
+  //  static uint32_t t0 = 0;
+  //  if (!t0 || millis() - t0 > 10*1*1000UL) {
+  //    t0 = millis();
+  //    LOG_D_PRINTF("millis(): %ld (0x%08x)\n", millis(), millis());
+  //    LOG_E_PRINTF("millis(): %ld (0x%08x)\n", millis(), millis());
+  //    LOG_I_PRINTF("millis(): %ld (0x%08x)\n", millis(), millis());
+  //  }
+  //}
   esp_task_wdt_reset();
 }
