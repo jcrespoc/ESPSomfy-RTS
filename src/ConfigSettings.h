@@ -142,6 +142,7 @@ class SecuritySettings: BaseSettings {
     char username[33] = "";
     char password[33] = "";
     char pin[5] = "";
+    char secret[65] = "";
     // Defaults to config-only (ConfigOnly) and NOT to full security. Decisive for third-party
     // clients: under full security, state and commands demand the key, which cuts off a Home
     // Assistant integration that does not present one. Under config-only, only the settings are
@@ -149,6 +150,7 @@ class SecuritySettings: BaseSettings {
     // only to devices that never saved a security setting: load() keeps the stored value when the
     // key exists in NVS, so nobody sees their setting changed.
     uint8_t permissions = static_cast<uint8_t>(security_permissions::ConfigOnly);
+    bool ensureSecret();
     bool begin();
     bool save();
     bool load();

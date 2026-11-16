@@ -1628,6 +1628,77 @@ var ui = new UIBinder();
 // it is deterministic anyway -- HMAC(secret, PIN + IP), see Web::createAPIToken. Keeping it in the
 // tab creates no new exposure; what it avoids is retyping the PIN on every reload, which mostly
 // pushes people towards a trivial code.
+function sha256(ascii) {
+    function rightRotate(value, amount) {
+        return (value >>> amount) | (value << (32 - amount));
+    }
+    var mathPow = Math.pow;
+    var maxWord = mathPow(2, 32);
+    var i, j, result = '';
+    var words = [];
+    var asciiBitLength = ascii.length * 8;
+    var h = [];
+    var k = [];
+    var primeCounter = 0;
+    var isComposite = {};
+    for (var candidate = 2; primeCounter < 64; candidate++) {
+        if (!isComposite[candidate]) {
+            for (i = 0; i < 312; i += candidate) isComposite[i] = candidate;
+            h[primeCounter] = (mathPow(candidate, .5) * maxWord) | 0;
+            k[primeCounter++] = (mathPow(candidate, 1/3) * maxWord) | 0;
+        }
+    }
+    ascii += '\x80';
+    while (ascii.length % 64 - 56) ascii += '\x00';
+    for (i = 0; i < ascii.length; i++) {
+        j = ascii.charCodeAt(i);
+        words[i >> 2] |= j << ((3 - i % 4) * 8);
+    }
+    words[words.length] = ((asciiBitLength / maxWord) | 0);
+    words[words.length] = (asciiBitLength) | 0;
+    for (j = 0; j < words.length;) {
+        var w = words.slice(j, j += 16);
+        var a = h[0], b = h[1], c = h[2], d = h[3];
+        var e = h[4], f = h[5], g = h[6], h_val = h[7];
+        for (i = 0; i < 64; i++) {
+            if (i >= 16) {
+                var w15 = w[i - 15], w2 = w[i - 2];
+                var s0 = rightRotate(w15, 7) ^ rightRotate(w15, 18) ^ (w15 >>> 3);
+                var s1 = rightRotate(w2, 17) ^ rightRotate(w2, 19) ^ (w2 >>> 10);
+                w[i] = (w[i - 16] + s0 + w[i - 7] + s1) | 0;
+            }
+            var s1_e = rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25);
+            var ch = (e & f) ^ ((~e) & g);
+            var temp1 = (h_val + s1_e + ch + k[i] + w[i]) | 0;
+            var s0_a = rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22);
+            var maj = (a & b) ^ (a & c) ^ (b & c);
+            var temp2 = (s0_a + maj) | 0;
+            h_val = g;
+            g = f;
+            f = e;
+            e = (d + temp1) | 0;
+            d = c;
+            c = b;
+            b = a;
+            a = (temp1 + temp2) | 0;
+        }
+        h[0] = (h[0] + a) | 0;
+        h[1] = (h[1] + b) | 0;
+        h[2] = (h[2] + c) | 0;
+        h[3] = (h[3] + d) | 0;
+        h[4] = (h[4] + e) | 0;
+        h[5] = (h[5] + f) | 0;
+        h[6] = (h[6] + g) | 0;
+        h[7] = (h[7] + h_val) | 0;
+    }
+    for (i = 0; i < 8; i++) {
+        for (j = 3; j >= 0; j--) {
+            var byteVal = (h[i] >>> (j * 8)) & 255;
+            result += (byteVal < 16 ? '0' : '') + byteVal.toString(16);
+        }
+    }
+    return result;
+}
 const SECURITY_SESSION_KEY = 'espsomfy.apiKey';
 class Security {
     type = 0;
@@ -1773,31 +1844,50 @@ class Security {
                 break;
         }
         sec.pin = pin;
-        putJSONSync('/login', sec, (err, log) => {
+        getJSONSync('/loginChallenge', (err, ch) => {
             if (err) {
                 if (err.htmlError === 429 && err.retryAfter) this.startLoginLockout(err.retryAfter);
                 else ui.serviceError(err);
+                return;
             }
-            else {
-                console.log(log);
-                if (log.success) {
-                    if (typeof socket === 'undefined' || !socket) (async () => { await initSockets(); })();
-
-                    get('divUnauthenticated').style.display = 'none';
-                    get('divAuthenticated').style.display = '';
-                    get('divContainer').setAttribute('data-auth', true);
-                    this.apiKey = log.apiKey;
-                    this._persistSessionKey();
-                    this.authenticated = true;
-                    let evt = new CustomEvent('afterlogin', { detail: { authenticated: true } });
-                    get('divContainer').dispatchEvent(evt);
+            const challenge = (ch && ch.challenge) ? ch.challenge : '';
+            if (!challenge) {
+                msg.innerHTML = tr('ERR_COMMUNICATION') || 'Error getting login challenge';
+                return;
+            }
+            let resp = (sec.type === 1) ? sha256(pin + ':' + challenge) : sha256(sec.username + ':' + sec.password + ':' + challenge);
+            let reqPayload = { challenge: challenge, response: resp };
+            putJSONSync('/login', reqPayload, (err, log) => {
+                if (err) {
+                    if (err.htmlError === 429 && err.retryAfter) this.startLoginLockout(err.retryAfter);
+                    else ui.serviceError(err);
                 }
                 else {
-                    let text = tr(log.msg);
-                    if (log.maxAttempts) text += ` (${tr('SECURITY_LOGIN_ATTEMPT_LABEL')} ${log.attempt}/${log.maxAttempts})`;
-                    msg.innerHTML = text;
+                    console.log(log);
+                    if (log.success) {
+                        if (typeof socket === 'undefined' || !socket) (async () => { await initSockets(); })();
+
+                        get('divUnauthenticated').style.display = 'none';
+                        get('divAuthenticated').style.display = '';
+                        get('divContainer').setAttribute('data-auth', true);
+                        this.apiKey = log.apiKey;
+                        this._persistSessionKey();
+                        this.authenticated = true;
+                        let evt = new CustomEvent('afterlogin', { detail: { authenticated: true } });
+                        get('divContainer').dispatchEvent(evt);
+                    }
+                    else {
+                        let text = tr(log.msg);
+                        if (log.maxAttempts) text += ` (${tr('SECURITY_LOGIN_ATTEMPT_LABEL')} ${log.attempt}/${log.maxAttempts})`;
+                        msg.innerHTML = text;
+                        if (sec.type === 1) {
+                            pnl.querySelectorAll('.pin-digit').forEach(el => el.value = '');
+                            let fld = pnl.querySelector('.pin-digit[data-bind="login.pin.d0"]');
+                            if (fld) fld.focus();
+                        }
+                    }
                 }
-            }
+            });
         });
     }
     startLoginLockout(seconds) {

@@ -7,6 +7,7 @@
 #include "Utils.h"
 #include "esp_chip_info.h"
 #include "Logger.h"
+#include <esp_random.h>
 
 
 Preferences pref;
@@ -740,6 +741,20 @@ void SecuritySettings::toJSON(JsonResponse &json) {
   json.addElem("permissions", this->permissions);
 }
 
+bool SecuritySettings::ensureSecret() {
+  if(strlen(this->secret) == 0) {
+    uint8_t randBytes[32];
+    esp_fill_random(randBytes, sizeof(randBytes));
+    for(size_t i = 0; i < sizeof(randBytes); i++) {
+      snprintf(&this->secret[i * 2], 3, "%02x", randBytes[i]);
+    }
+    this->secret[64] = '\0';
+    pref.begin("SEC");
+    pref.putString("secret", this->secret);
+    pref.end();
+  }
+  return true;
+}
 bool SecuritySettings::save() {
   pref.begin("SEC");
   pref.clear();
@@ -748,6 +763,7 @@ bool SecuritySettings::save() {
   pref.putString("password", this->password);
   pref.putString("pin", this->pin);
   pref.putChar("permissions", this->permissions);
+  if(strlen(this->secret) > 0) pref.putString("secret", this->secret);
   pref.end();
   return true;
 }
@@ -758,6 +774,7 @@ bool SecuritySettings::load() {
   if(pref.isKey("password")) pref.getString("password", this->password, sizeof(this->password));
   if(pref.isKey("pin")) pref.getString("pin", this->pin, sizeof(this->pin));
   if(pref.isKey("permissions")) this->permissions = pref.getChar("permissions", this->permissions);
+  if(pref.isKey("secret")) pref.getString("secret", this->secret, sizeof(this->secret));
   pref.end();
   return true;
 }
