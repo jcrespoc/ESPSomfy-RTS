@@ -30,6 +30,11 @@ int8_t appver_t::compare(appver_t &ver) {
     else {
       if(this->build > ver.build) return 1;
       else if(this->build < ver.build) return -1;
+      else {
+        int cmp = strcmp(this->suffix, ver.suffix);
+        if (cmp > 0) return 1;
+        if (cmp < 0) return -1;
+      }      
     }
   }
   return 0;
