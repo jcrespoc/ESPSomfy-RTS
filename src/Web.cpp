@@ -261,7 +261,7 @@ static void generateLoginChallenge(login_tracker_t &t) {
 }
 static bool isValidChallenge(const login_tracker_t &t, const char *challenge) {
   if(t.challenge[0] == '\0' || !challenge || challenge[0] == '\0') return false;
-  if((uint32_t)(millis() - t.challengeTime) > 120000UL) return false;
+  if((uint32_t)(millis() - t.challengeTime) > 30000UL) return false;
   return strcmp(t.challenge, challenge) == 0;
 }
 static void computeSha256Hex(const char *input, char *outputHex) {
@@ -438,6 +438,16 @@ void Web::handleLoginChallenge(WebServer &server) {
   if(server.method() == HTTP_OPTIONS) { server.send(200, "OK"); return; }
   IPAddress clientAddr = server.client().remoteIP();
   login_tracker_t *tracker = loginTrackerFor(clientAddr);
+  if(loginIsLocked(*tracker)) {
+    uint32_t retryAfter = (uint32_t)((tracker->lockUntil - millis() + 999) / 1000);
+    StaticJsonDocument<128> doc;
+    doc["error"] = "locked";
+    doc["msg"] = "Too many attempts. Please wait.";
+    doc["retryAfter"] = retryAfter;
+    serializeJson(doc, g_content);
+    server.send(429, _encoding_json, g_content);
+    return;
+  }
   generateLoginChallenge(*tracker);
   StaticJsonDocument<128> doc;
   doc["challenge"] = tracker->challenge;
@@ -687,11 +697,6 @@ void Web::handleLoginContext(WebServer &server) {
     // there is no session, and all the client code tests `type === 0 || authenticated`.
     resp.addElem("authenticated",
       settings.Security.type == security_types::None ? false : webServer.checkAuth(server, true));
-    if(settings.Security.type != security_types::None) {
-      login_tracker_t *tracker = loginTrackerFor(server.client().remoteIP());
-      generateLoginChallenge(*tracker);
-      resp.addElem("challenge", tracker->challenge);
-    }
     resp.addElem("serverId", settings.serverId);
     resp.addElem("version", settings.fwVersion.name);
     resp.addElem("model", "ESPSomfyRTS");

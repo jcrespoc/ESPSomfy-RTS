@@ -1685,7 +1685,6 @@ class Security {
     type = 0;
     authenticated = false;
     apiKey = '';
-    challenge = '';
     permissions = 0;
     // All three accesses are wrapped: the API throws (SecurityError) when storage is disabled by
     // browser configuration. A failure here must never stop anyone from signing in -- it simply
@@ -1760,7 +1759,6 @@ class Security {
 
                     this.type = ctx.type;
                     this.permissions = ctx.permissions;
-                    if (ctx.challenge) this.challenge = ctx.challenge;
                     // The FIRMWARE's verdict on the key just presented with this request (the
                     // `authenticated` field of /loginContext), not something the browser worked out.
                     // That is what makes resuming a session safe. The type === 0 case stays `false`
@@ -1827,40 +1825,50 @@ class Security {
                 break;
         }
         sec.pin = pin;
-        let reqPayload;
-        if (this.challenge) {
-            let resp = (sec.type === 1) ? sha256(pin + ':' + this.challenge) : sha256(sec.username + ':' + sec.password + ':' + this.challenge);
-            reqPayload = { challenge: this.challenge, response: resp };
-        } else {
-            reqPayload = sec;
-        }
-        putJSONSync('/login', reqPayload, (err, log) => {
+        getJSONSync('/loginChallenge', (err, ch) => {
             if (err) {
-                getJSONSync('/loginChallenge', (e, ch) => { if (ch && ch.challenge) this.challenge = ch.challenge; });
                 if (err.htmlError === 429 && err.retryAfter) this.startLoginLockout(err.retryAfter);
                 else ui.serviceError(err);
+                return;
             }
-            else {
-                console.log(log);
-                if (log.success) {
-                    if (typeof socket === 'undefined' || !socket) (async () => { await initSockets(); })();
-
-                    get('divUnauthenticated').style.display = 'none';
-                    get('divAuthenticated').style.display = '';
-                    get('divContainer').setAttribute('data-auth', true);
-                    this.apiKey = log.apiKey;
-                    this._persistSessionKey();
-                    this.authenticated = true;
-                    let evt = new CustomEvent('afterlogin', { detail: { authenticated: true } });
-                    get('divContainer').dispatchEvent(evt);
+            const challenge = (ch && ch.challenge) ? ch.challenge : '';
+            if (!challenge) {
+                msg.innerHTML = tr('ERR_COMMUNICATION') || 'Error getting login challenge';
+                return;
+            }
+            let resp = (sec.type === 1) ? sha256(pin + ':' + challenge) : sha256(sec.username + ':' + sec.password + ':' + challenge);
+            let reqPayload = { challenge: challenge, response: resp };
+            putJSONSync('/login', reqPayload, (err, log) => {
+                if (err) {
+                    if (err.htmlError === 429 && err.retryAfter) this.startLoginLockout(err.retryAfter);
+                    else ui.serviceError(err);
                 }
                 else {
-                    getJSONSync('/loginChallenge', (e, ch) => { if (ch && ch.challenge) this.challenge = ch.challenge; });
-                    let text = tr(log.msg);
-                    if (log.maxAttempts) text += ` (${tr('SECURITY_LOGIN_ATTEMPT_LABEL')} ${log.attempt}/${log.maxAttempts})`;
-                    msg.innerHTML = text;
+                    console.log(log);
+                    if (log.success) {
+                        if (typeof socket === 'undefined' || !socket) (async () => { await initSockets(); })();
+
+                        get('divUnauthenticated').style.display = 'none';
+                        get('divAuthenticated').style.display = '';
+                        get('divContainer').setAttribute('data-auth', true);
+                        this.apiKey = log.apiKey;
+                        this._persistSessionKey();
+                        this.authenticated = true;
+                        let evt = new CustomEvent('afterlogin', { detail: { authenticated: true } });
+                        get('divContainer').dispatchEvent(evt);
+                    }
+                    else {
+                        let text = tr(log.msg);
+                        if (log.maxAttempts) text += ` (${tr('SECURITY_LOGIN_ATTEMPT_LABEL')} ${log.attempt}/${log.maxAttempts})`;
+                        msg.innerHTML = text;
+                        if (sec.type === 1) {
+                            pnl.querySelectorAll('.pin-digit').forEach(el => el.value = '');
+                            let fld = pnl.querySelector('.pin-digit[data-bind="login.pin.d0"]');
+                            if (fld) fld.focus();
+                        }
+                    }
                 }
-            }
+            });
         });
     }
     startLoginLockout(seconds) {
