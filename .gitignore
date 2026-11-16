@@ -10,6 +10,7 @@ extdata/
 build/
 data/
 include/git_build_info.h
+dist/
 .cache/
 *.bin
 *.elf

@@ -1,0 +1,19 @@
+services:
+  builder:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        UID: "${UID:-1000}"
+        GID: "${GID:-1000}"
+    user: "${UID:-1000}:${GID:-1000}"
+    container_name: espsomfy-builder
+    volumes:
+      - ..:/workspace
+      - platformio-cache:/home/builder/.platformio
+    environment:
+      - PLATFORMIO_CORE_DIR=/home/builder/.platformio
+    command: ["help"]
+
+volumes:
+  platformio-cache:
